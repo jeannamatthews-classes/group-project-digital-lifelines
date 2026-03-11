@@ -57,6 +57,9 @@ $schema("BOOKS", "id_1") {
     $column("isbn_10"): VARCHAR
     $column("title"): VARCHAR NOT NULL
     $column("publication_date"): DATE
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
     $column("favorite"): BOOLEAN
     $column("rating"): REAL
   }
@@ -92,6 +95,9 @@ $schema("MOVIES", "id_2") {
     $column("release_year"): INTEGER
     ' ID to link to IMDB. Very optional
     $column("imdb_tconst"): VARCHAR
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
     $column("favorite"): BOOLEAN
     $column("rating"): REAL
   }
@@ -125,6 +131,9 @@ $schema("MUSIC", "id_3") {
     $pk("id"): INTEGER NOT NULL
     $column("song_title"): VARCHAR NOT NULL
     $column("release_year"): INTEGER
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
     $column("favorite"): BOOLEAN
     $column("rating"): REAL
   }
@@ -138,6 +147,9 @@ $schema("MUSIC", "id_3") {
     $pk("id"): INTEGER NOT NULL
     $column("album_name"): VARCHAR NOT NULL
     $column("release_year"): INTEGER
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
     $column("favorite"): BOOLEAN
     $column("rating"): REAL
   }
@@ -187,6 +199,9 @@ $schema("PLACES", "id_4") {
     $column("description"): VARCHAR
     $column("latitude"): REAL
     $column("longitude"): REAL
+    ' Describes the type of location like "amusement park" or "restaurant"
+    $column("place_type") VARCHAR
+    $column("date_added") INTEGER NOT NULL
     $column("favorite"): BOOLEAN
     $column("rating"): REAL
   }
