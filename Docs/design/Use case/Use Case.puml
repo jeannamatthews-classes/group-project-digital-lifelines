@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+
+skinparam actor {
+    BorderColor #2E86DE
+    BackgroundColor #edf5ff 
+}
+
+skinparam usecase {
+    BackgroundColor #edf5ff 
+    BorderColor black
+    FontColor black
+}
+
+skinparam ArrowColor #424242
+
+actor User
+
+rectangle System {
+    usecase UC1 as "Manage Timeline
+    " 
+    usecase "Add Timeline" as UC2
+    usecase "Consult Timeline" as UC3
+    usecase "Export Timeline" as UC4
+    usecase "Import Timeline" as UC5
+    usecase "Modify Timeline" as UC6
+    usecase "Delete Timeline" as UC7
+    usecase "Search Timeline" as UC8
+    usecase "Filter Timeline" as UC9
+    usecase "Delete All" as UC10
+
+}
+
+User -- UC1
+User -- UC10
+UC1 ..> UC3 : <<include>>
+UC2 ..> UC1 : <<extends>>
+UC8 ..> UC1 : <<extends>>
+UC9 ..> UC8 : <<extends>>
+UC4 ..> UC3 : <<extends>>
+UC6 ..> UC3 : <<extends>>
+UC7 ..> UC3 : <<extends>>
+UC5 ..> UC2 : <<extends>>
+
+
+@enduml
