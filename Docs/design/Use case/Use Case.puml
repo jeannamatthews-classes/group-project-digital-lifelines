@@ -17,8 +17,7 @@ skinparam ArrowColor #424242
 actor User
 
 rectangle System {
-    usecase UC1 as "Manage Timeline
-    " 
+    usecase UC1 as "Manage Timeline" 
     usecase "Add Timeline" as UC2
     usecase "Consult Timeline" as UC3
     usecase "Export Timeline" as UC4
