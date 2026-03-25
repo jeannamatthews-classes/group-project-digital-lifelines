@@ -1,0 +1,223 @@
+@startuml
+
+' Database Schema for Digital Lifelines Project
+' CS 550 Spring 2026 - Group 1
+' 
+' Meta-language / template for PlantUML copied from https://gist.github.com/sualeh/ea272410356527d3132809061e8ba5b4
+'
+' Design Notes:
+'   * The experience tables are slimmed-down from a what fully fleshed out cataloging system would contain but have
+'     enough information to differentiate similarly named/titled books, songs, etc.
+'   * Each experience has its own "history" table to record the time of each experience. This enables a few types of
+'     queries: first occurrence (date added), most recent occurrence, how many times, etc.
+'   * Songs can have multiple artists and multiple albums. It is up to the user to enter as much data as they want
+'   * Maintaining a history of albums is a "nice-to-have" feature but the database will support it
+'   * Each experience has its own rating and favorite field. I didn't feel it was necessary to normalize them
+'   * The "ordinal" field for the "book_authors" table was suggested by Copilot. It made sense for directors too
+
+' Begin template
+
+!theme plain
+hide empty methods
+top to bottom direction
+
+!procedure $schema($name, $slug)
+package "$name" as $slug <<Rectangle>>
+!endprocedure
+
+!procedure $table($name, $slug)
+entity "<b>$name</b>" as $slug << (T, Orange) table >>
+!endprocedure
+
+!procedure $view($name, $slug)
+entity "<b>$name</b>" as $slug << (V, Aquamarine) view >>
+!endprocedure
+
+!procedure $pk($name)
+<color:#GoldenRod><&key></color> <b>$name</b>
+!endprocedure
+
+!procedure $fk($name)
+<color:#Silver><&key></color> $name
+!endprocedure
+
+!procedure $column($name)
+{field} <color:#White><&media-record></color> $name
+!endprocedure
+
+' End template
+
+title "Digital Lifelines Schema"
+
+$schema("BOOKS", "id_1") {
+
+  $table("books", "id_1_1") {
+    $pk("id"): INTEGER NOT NULL
+    $column("isbn_13"): VARCHAR
+    $column("isbn_10"): VARCHAR
+    $column("title"): VARCHAR NOT NULL
+    $column("publication_date"): DATE
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
+    $column("favorite"): BOOLEAN
+    $column("rating"): REAL
+  }
+
+  $table("book_authors", "id_1_2") {
+    $fk("book_id"): INTEGER NOT NULL
+    $fk("author_id"): INTEGER NOT NULL
+    ' order of authors if multiple on single book
+    $column("ordinal"): INTEGER
+  }
+
+  $table("authors", "id_1_3") {
+    $pk("id"): INTEGER NOT NULL
+    $column("display_name"): VARCHAR NOT NULL
+  }
+
+  $table("book_history", "id_1_4") {
+    $pk("id"): INTEGER NOT NULL
+    $fk("book_id"): INTEGER NOT NULL
+    $column("timestamp") INTEGER NOT NULL
+  }
+}
+
+id_1.id_1_1::id  ||--o{ id_1.id_1_2::book_id : FK_BOOK
+id_1.id_1_1::id  ||--o{ id_1.id_1_4::book_id : FK_BOOK_HISTORY
+id_1.id_1_3::id  ||--o{ id_1.id_1_2::author_id : FK_AUTHOR
+
+$schema("MOVIES", "id_2") {
+
+  $table("movies", "id_2_1") {
+    $pk("id"): INTEGER NOT NULL
+    $column("title"): VARCHAR NOT NULL
+    $column("release_year"): INTEGER
+    ' ID to link to IMDB. Very optional
+    $column("imdb_tconst"): VARCHAR
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
+    $column("favorite"): BOOLEAN
+    $column("rating"): REAL
+  }
+
+  $table("movie_directors", "id_2_2") {
+    $fk("movie_id"): INTEGER NOT NULL
+    $fk("director_id"): INTEGER NOT NULL
+    ' order of directors in the credits
+    $column("ordinal"): INTEGER
+  }
+
+  $table("directors", "id_2_3") {
+    $pk("id"): INTEGER NOT NULL
+    $column("display_name"): VARCHAR NOT NULL
+  }
+
+  $table("movie_history", "id_2_4") {
+    $pk("id"): INTEGER NOT NULL
+    $fk("movie_id"): INTEGER NOT NULL
+    $column("timestamp") INTEGER NOT NULL
+  }
+}
+
+id_2.id_2_1::id  ||--o{ id_2.id_2_2::movie_id : FK_MOVIE
+id_2.id_2_1::id  ||--o{ id_2.id_2_4::movie_id : FK_MOVIE_HISTORY
+id_2.id_2_3::id  ||--o{ id_2.id_2_2::director_id : FK_DIRECTOR
+
+$schema("MUSIC", "id_3") {
+
+  $table("songs", "id_3_1") {
+    $pk("id"): INTEGER NOT NULL
+    $column("song_title"): VARCHAR NOT NULL
+    $column("release_year"): INTEGER
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
+    $column("favorite"): BOOLEAN
+    $column("rating"): REAL
+  }
+
+  $table("song_albums", "id_3_2") {
+    $fk("song_id"): INTEGER NOT NULL
+    $fk("album_id"): INTEGER NOT NULL
+  }
+
+  $table("albums", "id_3_3") {
+    $pk("id"): INTEGER NOT NULL
+    $column("album_name"): VARCHAR NOT NULL
+    $column("release_year"): INTEGER
+    $column("genre") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("description") VARCHAR
+    $column("favorite"): BOOLEAN
+    $column("rating"): REAL
+  }
+
+  $table("album_artists", "id_3_4") {
+    $fk("album_id"): INTEGER NOT NULL
+    $fk("artist_id"): INTEGER NOT NULL
+  }
+
+  $table("song_artists", "id_3_5") {
+    $fk("song_id"): INTEGER NOT NULL
+    $fk("artist_id"): INTEGER NOT NULL
+  }
+
+  $table("artists", "id_3_6") {
+    $pk("id"): INTEGER NOT NULL
+    $column("display_name"): VARCHAR NOT NULL
+  }
+
+  $table("song_history", "id_3_7") {
+    $pk("id"): INTEGER NOT NULL
+    $fk("song_id"): INTEGER NOT NULL
+    $column("timestamp") INTEGER NOT NULL
+  }
+
+  $table("album_history", "id_3_8") {
+    $pk("id"): INTEGER NOT NULL
+    $fk("album_id"): INTEGER NOT NULL
+    $column("timestamp") INTEGER NOT NULL
+  }
+}
+
+id_3.id_3_1::id  ||--o{ id_3.id_3_2::song_id : FK_SONG_ALBUM
+id_3.id_3_1::id  ||--o{ id_3.id_3_5::song_id : FK_SONG_ARTIST
+id_3.id_3_3::id  ||--o{ id_3.id_3_2::album_id : FK_ALBUM_SONG
+id_3.id_3_3::id  ||--o{ id_3.id_3_4::album_id : FK_ALBUM_ARTIST
+id_3.id_3_6::id  ||--o{ id_3.id_3_4::artist_id : FK_ARTIST_ALBUM
+id_3.id_3_6::id  ||--o{ id_3.id_3_5::artist_id : FK_ARTIST_SONG
+id_3.id_3_1::id  ||--o{ id_3.id_3_7::song_id : FK_SONG_HISTORY
+id_3.id_3_3::id  ||--o{ id_3.id_3_8::album_id : FK_ALBUM_HISTORY
+
+$schema("PLACES", "id_4") {
+
+  $table("places", "id_4_1") {
+    $pk("id"): INTEGER NOT NULL
+    $column("name"): VARCHAR NOT NULL
+    $column("description"): VARCHAR
+    $column("latitude"): REAL
+    $column("longitude"): REAL
+    ' Describes the type of location like "amusement park" or "restaurant"
+    $column("place_type") VARCHAR
+    $column("date_added") INTEGER NOT NULL
+    $column("favorite"): BOOLEAN
+    $column("rating"): REAL
+  }
+
+  $table("place_history", "id_4_2") {
+    $pk("id"): INTEGER NOT NULL
+    $fk("place_id"): INTEGER NOT NULL
+    $column("timestamp") INTEGER NOT NULL
+  }
+}
+
+id_4.id_4_1::id  ||--o{ id_4.id_4_2::place_id : FK_PLACE_HISTORY
+
+' Hidden arrows to make the layout a bit better
+id_1 ---[hidden]> id_3
+id_2 ---[hidden]> id_3
+id_4 ---[hidden]> id_3
+
+@enduml
