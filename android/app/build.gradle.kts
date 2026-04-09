@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.digital_lifelines"
+    namespace = "edu.clarkson.cs550.digital_lifelines"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.digital_lifelines"
+        applicationId = "edu.clarkson.cs550.digital_lifelines"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

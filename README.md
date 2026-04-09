@@ -1,4 +1,4 @@
-# digital_lifelines
+# Digital Lifelines
 
 A new Flutter project.
 
