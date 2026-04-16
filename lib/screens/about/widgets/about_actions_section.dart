@@ -196,7 +196,7 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
 
   Future<void> _importJson() async {
     final controller = TextEditingController();
-    var replaceExisting = false;
+    var importMode = ImportMode.mergeSkipDuplicates;
 
     final payload = await showDialog<_ImportDialogResult>(
       context: context,
@@ -223,15 +223,45 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
                       ),
                       const SizedBox(height: 10),
                       CheckboxListTile(
-                        value: replaceExisting,
+                        value: importMode == ImportMode.replaceAll,
                         onChanged: (value) {
                           setDialogState(() {
-                            replaceExisting = value ?? false;
+                            importMode = (value ?? false)
+                                ? ImportMode.replaceAll
+                                : ImportMode.mergeSkipDuplicates;
                           });
                         },
                         title: const Text('Replace existing data'),
                         contentPadding: EdgeInsets.zero,
                         controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<ImportMode>(
+                        initialValue: importMode,
+                        decoration: const InputDecoration(
+                          labelText: 'Import mode',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: ImportMode.mergeSkipDuplicates,
+                            child: Text('Merge and skip duplicates'),
+                          ),
+                          DropdownMenuItem(
+                            value: ImportMode.mergeUpdateDuplicates,
+                            child: Text('Merge and update duplicates'),
+                          ),
+                          DropdownMenuItem(
+                            value: ImportMode.replaceAll,
+                            child: Text('Replace all existing data'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() {
+                            importMode = value;
+                          });
+                        },
                       ),
                     ],
                   ),
@@ -254,7 +284,7 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
                       dialogContext,
                       _ImportDialogResult(
                         jsonText: controller.text,
-                        replaceExisting: replaceExisting,
+                        importMode: importMode,
                       ),
                     );
                   },
@@ -271,14 +301,11 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
       return;
     }
 
-    await _runImport(
-      payload.jsonText,
-      replaceExisting: payload.replaceExisting,
-    );
+    await _runImport(payload.jsonText, importMode: payload.importMode);
   }
 
   Future<void> _importJsonFromFile() async {
-    var replaceExisting = false;
+    var importMode = ImportMode.mergeSkipDuplicates;
     final proceed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -286,16 +313,35 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
               title: const Text('Import From File'),
-              content: CheckboxListTile(
-                value: replaceExisting,
-                onChanged: (value) {
-                  setDialogState(() {
-                    replaceExisting = value ?? false;
-                  });
-                },
-                title: const Text('Replace existing data'),
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
+              content: SizedBox(
+                width: double.maxFinite,
+                child: DropdownButtonFormField<ImportMode>(
+                  initialValue: importMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Import mode',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: ImportMode.mergeSkipDuplicates,
+                      child: Text('Merge and skip duplicates'),
+                    ),
+                    DropdownMenuItem(
+                      value: ImportMode.mergeUpdateDuplicates,
+                      child: Text('Merge and update duplicates'),
+                    ),
+                    DropdownMenuItem(
+                      value: ImportMode.replaceAll,
+                      child: Text('Replace all existing data'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() {
+                      importMode = value;
+                    });
+                  },
+                ),
               ),
               actions: [
                 TextButton(
@@ -345,41 +391,88 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
       return;
     }
 
-    await _runImport(jsonText, replaceExisting: replaceExisting);
+    await _runImport(jsonText, importMode: importMode);
   }
 
   Future<void> _importJsonFromPath() async {
     final controller = TextEditingController();
-    final path = await showDialog<String>(
+    var importMode = ImportMode.mergeSkipDuplicates;
+    final payload = await showDialog<_PathImportDialogResult>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          scrollable: true,
-          title: const Text('Import From File Path'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText:
-                  '/storage/emulated/0/Download/digital_lifelines_import.json',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, controller.text.trim()),
-              child: const Text('Load'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              scrollable: true,
+              title: const Text('Import From File Path'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        hintText:
+                            '/storage/emulated/0/Download/digital_lifelines_import.json',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<ImportMode>(
+                      initialValue: importMode,
+                      decoration: const InputDecoration(
+                        labelText: 'Import mode',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: ImportMode.mergeSkipDuplicates,
+                          child: Text('Merge and skip duplicates'),
+                        ),
+                        DropdownMenuItem(
+                          value: ImportMode.mergeUpdateDuplicates,
+                          child: Text('Merge and update duplicates'),
+                        ),
+                        DropdownMenuItem(
+                          value: ImportMode.replaceAll,
+                          child: Text('Replace all existing data'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() {
+                          importMode = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(
+                    dialogContext,
+                    _PathImportDialogResult(
+                      path: controller.text.trim(),
+                      importMode: importMode,
+                    ),
+                  ),
+                  child: const Text('Load'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
-    if (path == null || path.isEmpty) return;
+    final path = payload?.path ?? '';
+    if (path.isEmpty) return;
 
     try {
       final jsonText = await File(path).readAsString();
@@ -390,7 +483,10 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
         ).showSnackBar(const SnackBar(content: Text('File is empty')));
         return;
       }
-      await _runImport(jsonText, replaceExisting: false);
+      await _runImport(
+        jsonText,
+        importMode: payload?.importMode ?? ImportMode.mergeSkipDuplicates,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -401,22 +497,19 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
 
   Future<void> _runImport(
     String jsonText, {
-    required bool replaceExisting,
+    required ImportMode importMode,
   }) async {
     setState(() {
       _isBusy = true;
     });
 
     try {
-      final result = await _dbHelper.importFromJson(
-        jsonText,
-        replaceExisting: replaceExisting,
-      );
+      final result = await _dbHelper.importFromJson(jsonText, mode: importMode);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Imported: ${result.timelines} timelines, ${result.fields} fields, ${result.entries} entries, ${result.values} values',
+            'Imported: ${result.timelines} timelines, ${result.fields} fields, ${result.entries} entries, ${result.values} values | Skipped: ${result.skippedEntries} | Updated: ${result.updatedEntries}',
           ),
         ),
       );
@@ -457,73 +550,73 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Example Lifeline Categories',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        const Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _MiniTag(label: 'Books', color: Color(0xFFFF7B7B)),
-            _MiniTag(label: 'Movies', color: Color(0xFF6F79FF)),
-            _MiniTag(label: 'Songs', color: Color(0xFFFFBF53)),
-            _MiniTag(label: 'Places', color: Color(0xFF5CC48E)),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _ActionButton(
-          onPressed: _isBusy ? null : _showTemplateJson,
-          icon: Icons.description_outlined,
-          text: 'Show Template JSON',
-        ),
-        const SizedBox(height: 10),
-        _ActionButton(
-          onPressed: _isBusy ? null : _exportJsonToPhone,
-          icon: Icons.upload_file_outlined,
-          text: 'Export Data JSON to Phone',
-        ),
-        const SizedBox(height: 10),
-        _ActionButton(
-          onPressed: _isBusy ? null : _importJson,
-          icon: Icons.download_for_offline_outlined,
-          text: 'Import JSON (Paste)',
-        ),
-        const SizedBox(height: 10),
-        _ActionButton(
-          onPressed: _isBusy ? null : _importJsonFromFile,
-          icon: Icons.folder_open_outlined,
-          text: 'Import JSON From File',
-        ),
-        if (_lastExportPath != null) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.check_circle_outline, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Last export: $_lastExportPath',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
+        children: [
+          const Text(
+            'Example Lifeline Categories',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 8),
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniTag(label: 'Books', color: Color(0xFFFF7B7B)),
+              _MiniTag(label: 'Movies', color: Color(0xFF6F79FF)),
+              _MiniTag(label: 'Songs', color: Color(0xFFFFBF53)),
+              _MiniTag(label: 'Places', color: Color(0xFF5CC48E)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _ActionButton(
+            onPressed: _isBusy ? null : _showTemplateJson,
+            icon: Icons.description_outlined,
+            text: 'Show Template JSON',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _exportJsonToPhone,
+            icon: Icons.upload_file_outlined,
+            text: 'Export Data JSON to Phone',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _importJson,
+            icon: Icons.download_for_offline_outlined,
+            text: 'Import JSON (Paste)',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _importJsonFromFile,
+            icon: Icons.folder_open_outlined,
+            text: 'Import JSON From File',
+          ),
+          if (_lastExportPath != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Last export: $_lastExportPath',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_isBusy) ...[
+            const SizedBox(height: 16),
+            const Center(child: CircularProgressIndicator()),
+          ],
         ],
-        if (_isBusy) ...[
-          const SizedBox(height: 16),
-          const Center(child: CircularProgressIndicator()),
-        ],
-      ],
       ),
     );
   }
@@ -581,10 +674,14 @@ class _MiniTag extends StatelessWidget {
 
 class _ImportDialogResult {
   final String jsonText;
-  final bool replaceExisting;
+  final ImportMode importMode;
 
-  const _ImportDialogResult({
-    required this.jsonText,
-    required this.replaceExisting,
-  });
+  const _ImportDialogResult({required this.jsonText, required this.importMode});
+}
+
+class _PathImportDialogResult {
+  final String path;
+  final ImportMode importMode;
+
+  const _PathImportDialogResult({required this.path, required this.importMode});
 }

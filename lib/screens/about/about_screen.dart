@@ -116,8 +116,10 @@ class _InfoCard extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('What is Digital Lifelines?',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+            'What is Digital Lifelines?',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           SizedBox(height: 6),
           Text(
             'Digital Lifelines is a flexible journaling app where each lifeline can have custom fields. Save entries quickly, mark favorites, and keep your records offline.',

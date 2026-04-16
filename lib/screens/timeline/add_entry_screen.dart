@@ -137,11 +137,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: SwitchListTile(
                     value: _isFavorite,
@@ -152,11 +154,14 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                               _isFavorite = value;
                             });
                           },
-                    title: const Text('Mark as Favorite'),
+                    title: const Text(
+                      'Mark as Favorite',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
                 if (_fields.isEmpty)
                   const Text('No fields found for this timeline.')
                 else
