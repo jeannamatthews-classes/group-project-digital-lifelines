@@ -1,0 +1,80 @@
+@startuml
+
+' Database Schema for Digital Lifelines Project
+' CS 550 Spring 2026 - Group 1
+' 
+' Meta-language / template for PlantUML copied from https://gist.github.com/sualeh/ea272410356527d3132809061e8ba5b4
+
+
+' Begin template
+
+!theme plain
+hide empty methods
+top to bottom direction
+
+!procedure $schema($name, $slug)
+package "$name" as $slug <<Rectangle>>
+!endprocedure
+
+!procedure $table($name, $slug)
+entity "<b>$name</b>" as $slug << (T, Orange) table >>
+!endprocedure
+
+!procedure $view($name, $slug)
+entity "<b>$name</b>" as $slug << (V, Aquamarine) view >>
+!endprocedure
+
+!procedure $pk($name)
+<color:#GoldenRod><&key></color> <b>$name</b>
+!endprocedure
+
+!procedure $fk($name)
+<color:#Silver><&key></color> $name
+!endprocedure
+
+!procedure $column($name)
+{field} <color:#White><&media-record></color> $name
+!endprocedure
+
+' End template
+
+title "Digital Lifelines Schema"
+
+$schema(" ", "id_1") {
+  $table("timelines", "id_1_1") {
+    $pk("id"): INTEGER NOT NULL
+    $column("name"): TEXT
+  }
+
+  $table("fields", "id_1_2") {
+    $pk("id"): INTEGER NOT NULL
+    $column("timeline_id"): INTEGER NOT NULL
+    $column("name"): TEXT
+    $column("type"): TEXT
+  }
+
+  $table("entries", "id_1_3") {
+    $pk("id"): INTEGER NOT NULL
+    $column("timeline_id"): INTEGER NOT NULL
+    $column("created_at"): INTEGER
+    $column("is_favorite"): INTEGER
+  }
+
+  $table("values", "id_1_4") {
+    $pk("id"): INTEGER NOT NULL
+    $column("entry_id"): INTEGER NOT NULL
+    $column("field_id"): INTEGER NOT NULL
+    $column("value"): TEXT
+  }
+}
+
+id_1.id_1_1::id  ||--o{ id_1.id_1_2::timeline_id : FK_TIMELINE
+id_1.id_1_1::id  ||--o{ id_1.id_1_3::timeline_id : FK_TIMELINE
+id_1.id_1_3::id  ||--o{ id_1.id_1_4::entry_id : FK_ENTRY
+
+
+' Hidden arrows to make the layout a bit better
+id_1_1 ---[hidden]> id_1_3
+id_1_2 ---[hidden]> id_1_4
+
+@enduml
