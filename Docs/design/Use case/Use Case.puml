@@ -27,11 +27,17 @@ rectangle System {
     usecase "Search Timeline" as UC8
     usecase "Filter Timeline" as UC9
     usecase "Delete All" as UC10
+    usecase "Consult Record" as UC11
+    usecase "Add Record" as UC12
+    usecase "Modify Record" as UC13
+    usecase "Delete Record" as UC14
 
-}
+
+    }
 
 User -- UC1
 User -- UC10
+User -- UC12
 UC1 ..> UC3 : <<include>>
 UC2 ..> UC1 : <<extends>>
 UC8 ..> UC1 : <<extends>>
@@ -40,6 +46,9 @@ UC4 ..> UC3 : <<extends>>
 UC6 ..> UC3 : <<extends>>
 UC7 ..> UC3 : <<extends>>
 UC5 ..> UC2 : <<extends>>
-
+UC11 ..> UC3 : <<extends>>
+UC12 ..> UC11 : <<extends>>
+UC13 ..> UC11 : <<extends>>
+UC14 ..> UC11 : <<extends>>
 
 @enduml
