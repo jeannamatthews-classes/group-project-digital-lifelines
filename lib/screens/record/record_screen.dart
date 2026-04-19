@@ -1,4 +1,8 @@
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../services/photo_import_service.dart';
+import 'dart:io';
 
 import '../../database/db_helper.dart';
 import '../../models/entry.dart';
@@ -17,6 +21,10 @@ class _RecordScreenState extends State<RecordScreen> {
   final DBHelper _dbHelper = DBHelper.instance;
   final Map<int, TextEditingController> _controllers = {};
 
+  File? _image;
+  String _info = "No photo data yet";
+  final PhotoImportService _photoImportService = PhotoImportService();
+
   List<Timeline> _timelines = [];
   List<TimelineField> _fields = [];
   int? _selectedTimelineId;
@@ -28,6 +36,31 @@ class _RecordScreenState extends State<RecordScreen> {
   void initState() {
     super.initState();
     _loadTimelines();
+  }
+
+  Future<void> importPhoto() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+        _info = "Loading EXIF...";
+      });
+      try {
+        final exif = await _photoImportService.extractExif(pickedFile.path);
+        setState(() {
+          _info = "Lat: "+exif["latitude"]!+"\nLng: "+exif["longitude"]!+"\nTime: "+exif["time"]!;
+        });
+      } catch (e) {
+        setState(() {
+          _info = "Failed to read EXIF: $e";
+        });
+      }
+    } else {
+      setState(() {
+        _info = "No image selected";
+      });
+    }
   }
 
   @override
@@ -135,78 +168,95 @@ class _RecordScreenState extends State<RecordScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _timelines.isEmpty
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Create a lifeline first from the Lifelines tab, then you can record points here.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                DropdownButtonFormField<int>(
-                  initialValue: _selectedTimelineId,
-                  decoration: const InputDecoration(labelText: 'Lifeline'),
-                  items: _timelines
-                      .where((t) => t.id != null)
-                      .map(
-                        (timeline) => DropdownMenuItem<int>(
-                          value: timeline.id,
-                          child: Text(timeline.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) async {
-                    if (value == null) return;
-                    setState(() {
-                      _selectedTimelineId = value;
-                    });
-                    await _loadFieldsForTimeline(value);
-                  },
-                ),
-                const SizedBox(height: 14),
-                ..._fields.map((field) {
-                  final id = field.id;
-                  final controller = id == null ? null : _controllers[id];
-                  if (controller == null) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final isNumber = field.type == 'number';
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: TextField(
-                      controller: controller,
-                      keyboardType: isNumber
-                          ? const TextInputType.numberWithOptions(decimal: true)
-                          : TextInputType.text,
-                      decoration: InputDecoration(labelText: field.name),
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Create a lifeline first from the Lifelines tab, then you can record points here.',
+                      textAlign: TextAlign.center,
                     ),
-                  );
-                }),
-                const SizedBox(height: 2),
-                SwitchListTile(
-                  value: _markFavorite,
-                  onChanged: _isSaving
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _markFavorite = value;
-                          });
-                        },
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Mark as Favorite'),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // --- Photo Import UI ---
+                    Column(
+                      children: [
+                        ElevatedButton(
+                          onPressed: importPhoto,
+                          child: const Text("Import Photo"),
+                        ),
+                        const SizedBox(height: 10),
+                        _image != null
+                            ? Image.file(_image!, height: 150)
+                            : const Text("No image selected"),
+                        const SizedBox(height: 10),
+                        Text(_info),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                    // --- Existing fields UI ---
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedTimelineId,
+                      decoration: const InputDecoration(labelText: 'Lifeline'),
+                      items: _timelines
+                          .where((t) => t.id != null)
+                          .map(
+                            (timeline) => DropdownMenuItem<int>(
+                              value: timeline.id,
+                              child: Text(timeline.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        setState(() {
+                          _selectedTimelineId = value;
+                        });
+                        await _loadFieldsForTimeline(value);
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    ..._fields.map((field) {
+                      final id = field.id;
+                      final controller = id == null ? null : _controllers[id];
+                      if (controller == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      final isNumber = field.type == 'number';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: isNumber
+                              ? const TextInputType.numberWithOptions(decimal: true)
+                              : TextInputType.text,
+                          decoration: InputDecoration(labelText: field.name),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 2),
+                    SwitchListTile(
+                      value: _markFavorite,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _markFavorite = value;
+                              });
+                            },
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Mark as Favorite'),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: _isSaving ? null : _saveLifePoint,
+                      child: Text(_isSaving ? 'Saving...' : 'Save Life Point'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _saveLifePoint,
-                  child: Text(_isSaving ? 'Saving...' : 'Save Life Point'),
-                ),
-              ],
-            ),
     );
   }
 }
