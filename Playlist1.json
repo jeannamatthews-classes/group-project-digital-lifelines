@@ -1,0 +1,611 @@
+{
+  "playlists" : [ {
+    "name" : "G",
+    "lastModifiedDate" : "2025-09-17",
+    "collaborators" : [ ],
+    "items" : [ {
+      "track" : {
+        "trackName" : "Scream & Shout",
+        "artistName" : "will.i.am",
+        "albumName" : "#willpower",
+        "trackUri" : "spotify:track:2iJuuzV8P9Yz0VSurttIV5"
+      },
+      "addedDate" : "2025-09-17"
+    } ],
+    "numberOfFollowers" : 0
+  }, {
+    "name" : "Beast Mode",
+    "lastModifiedDate" : "2024-09-06",
+    "collaborators" : [ ],
+    "items" : [ {
+      "track" : {
+        "trackName" : "Family Matters",
+        "artistName" : "Drake",
+        "albumName" : "Family Matters",
+        "trackUri" : "spotify:track:1wFFFzJ5EsKbBWZriAcubN"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Stir Fry",
+        "artistName" : "Migos",
+        "albumName" : "Culture II",
+        "trackUri" : "spotify:track:2UVbBKQOdFAekPTRsnkzcf"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "EVERY CHANCE I GET (feat. Lil Baby & Lil Durk)",
+        "artistName" : "DJ Khaled",
+        "albumName" : "KHALED KHALED",
+        "trackUri" : "spotify:track:1EJIcDYXwSqipW5dFe4uJz"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Look Alive (feat. Drake)",
+        "artistName" : "BlocBoy JB",
+        "albumName" : "Simi",
+        "trackUri" : "spotify:track:6HJ34Zyw6bg8yGm28AxLXf"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Jimmy Cooks (feat. 21 Savage)",
+        "artistName" : "Drake",
+        "albumName" : "Honestly, Nevermind",
+        "trackUri" : "spotify:track:3F5CgOj3wFlRv51JsHbxhe"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Push Ups",
+        "artistName" : "Drake",
+        "albumName" : "Push Ups",
+        "trackUri" : "spotify:track:3eh51r6rFWAlGQRlHx9QnQ"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Praise The Lord (Da Shine) (feat. Skepta)",
+        "artistName" : "A$AP Rocky",
+        "albumName" : "TESTING",
+        "trackUri" : "spotify:track:7ycWLEP1GsNjVvcjawXz3z"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Glock In My Lap",
+        "artistName" : "21 Savage",
+        "albumName" : "SAVAGE MODE II",
+        "trackUri" : "spotify:track:6pcywuOeGGWeOQzdUyti6k"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Runnin",
+        "artistName" : "21 Savage",
+        "albumName" : "SAVAGE MODE II",
+        "trackUri" : "spotify:track:5SWnsxjhdcEDc7LJjq9UHk"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Daylight",
+        "artistName" : "Drake",
+        "albumName" : "For All The Dogs",
+        "trackUri" : "spotify:track:4ZT0wGKwlJRjpMUuwZVy3p"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "First Person Shooter (feat. J. Cole)",
+        "artistName" : "Drake",
+        "albumName" : "For All The Dogs",
+        "trackUri" : "spotify:track:7aqfrAY2p9BUSiupwk3svU"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "fukumean",
+        "artistName" : "Gunna",
+        "albumName" : "a Gift & a Curse",
+        "trackUri" : "spotify:track:4rXLjWdF2ZZpXCVTfWcshS"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Peaches & Eggplants (feat. 21 Savage)",
+        "artistName" : "Young Nudy",
+        "albumName" : "Gumbo",
+        "trackUri" : "spotify:track:2KcQ0PbPj0O3P48B9YX7iN"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "redrum",
+        "artistName" : "21 Savage",
+        "albumName" : "american dream",
+        "trackUri" : "spotify:track:52eIcoLUM25zbQupAZYoFh"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Not Like Us",
+        "artistName" : "Kendrick Lamar",
+        "albumName" : "Not Like Us",
+        "trackUri" : "spotify:track:6AI3ezQ4o3HUoP6Dhudph3"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Ambition For Cash",
+        "artistName" : "Key Glock",
+        "albumName" : "Yellow Tape 2",
+        "trackUri" : "spotify:track:4mIHgQ3ofK2RK34UdbqMbe"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Invincible",
+        "artistName" : "Pop Smoke",
+        "albumName" : "Meet The Woo 2",
+        "trackUri" : "spotify:track:792HwhrdO3ErRKL5yRe4Ge"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Dior",
+        "artistName" : "Pop Smoke",
+        "albumName" : "Meet The Woo",
+        "trackUri" : "spotify:track:79s5XnCN4TJKTVMSmOx8Ep"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "dangerous",
+        "artistName" : "21 Savage",
+        "albumName" : "american dream",
+        "trackUri" : "spotify:track:0fyP96TikhD9sM4eKqw5Yp"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Shotta Flow (feat. Blueface) - Remix",
+        "artistName" : "NLE Choppa",
+        "albumName" : "Cottonwood",
+        "trackUri" : "spotify:track:5OFlp1fOrfiSXOjw4wuSgy"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Element",
+        "artistName" : "Pop Smoke",
+        "albumName" : "Meet The Woo 2",
+        "trackUri" : "spotify:track:57BGVV6wcyhbn3hsjlqEZB"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Going Bad (feat. Drake)",
+        "artistName" : "Meek Mill",
+        "albumName" : "Championships",
+        "trackUri" : "spotify:track:2IRZnDFmlqMuOrYOLnZZyc"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Life Is Good (feat. Drake)",
+        "artistName" : "Future",
+        "albumName" : "High Off Life",
+        "trackUri" : "spotify:track:1K5KBOgreBi5fkEHvg5ap3"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "POPSTAR (feat. Drake)",
+        "artistName" : "DJ Khaled",
+        "albumName" : "KHALED KHALED",
+        "trackUri" : "spotify:track:1sbEeUY8KsdvgiQi26JBFz"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Hit 'Em Up - Single Version",
+        "artistName" : "2Pac",
+        "albumName" : "Greatest Hits",
+        "trackUri" : "spotify:track:0Z2J91b2iTGLVTZC4fKgxf"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "SICKO MODE",
+        "artistName" : "Travis Scott",
+        "albumName" : "ASTROWORLD",
+        "trackUri" : "spotify:track:2xLMifQCjDGFmkHkpNLD9h"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Sticky",
+        "artistName" : "Drake",
+        "albumName" : "Honestly, Nevermind",
+        "trackUri" : "spotify:track:4rmVZajAF7PkrCagGPHbqa"
+      },
+      "addedDate" : "2024-09-01"
+    }, {
+      "track" : {
+        "trackName" : "Jumbotron Shit Poppin",
+        "artistName" : "Drake",
+        "albumName" : "Her Loss",
+        "trackUri" : "spotify:track:2ZlABhxMMa43COmZ97kKsJ"
+      },
+      "addedDate" : "2024-09-01"
+    } ],
+    "numberOfFollowers" : 0
+  }, {
+    "name" : "Sleeping Beauty",
+    "lastModifiedDate" : "2024-08-01",
+    "collaborators" : [ ],
+    "items" : [ {
+      "track" : {
+        "trackName" : "Lady Of Namek",
+        "artistName" : "Tory Lanez",
+        "albumName" : "Alone At Prom",
+        "trackUri" : "spotify:track:6ieWL5CLN9WdC875guWtMe"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Hurts Me",
+        "artistName" : "Tory Lanez",
+        "albumName" : "Hurts Me",
+        "trackUri" : "spotify:track:0RBw4ODUQPO4cuAOZtBGga"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Love Me Harder",
+        "artistName" : "Ariana Grande",
+        "albumName" : "The Highlights",
+        "trackUri" : "spotify:track:37NfmgIw3hLatdtt7c8PNm"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Passionfruit",
+        "artistName" : "Drake",
+        "albumName" : "More Life",
+        "trackUri" : "spotify:track:5mCPDVBb16L4XQwDdbRUpz"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "I KNOW ?",
+        "artistName" : "Travis Scott",
+        "albumName" : "UTOPIA",
+        "trackUri" : "spotify:track:6wsqVwoiVH2kde4k4KKAFU"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Jealous Guy",
+        "artistName" : "The Weeknd",
+        "albumName" : "The Idol Episode 4",
+        "trackUri" : "spotify:track:5LffvExhQQFcfwqkGNpFpM"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Is There Someone Else?",
+        "artistName" : "The Weeknd",
+        "albumName" : "Dawn FM",
+        "trackUri" : "spotify:track:0mL82sxCRjrs3br407IdJh"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "It's You",
+        "artistName" : "Ali Gatie",
+        "albumName" : "YOU",
+        "trackUri" : "spotify:track:5DqdesEfbRyOlSS3Tf6c29"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Heartless",
+        "artistName" : "The Weeknd",
+        "albumName" : "After Hours",
+        "trackUri" : "spotify:track:6bnF93Rx87YqUBLSgjiMU8"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Die For You",
+        "artistName" : "The Weeknd",
+        "albumName" : "Starboy",
+        "trackUri" : "spotify:track:2LBqCSwhJGcFQeTHMVGwy3"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "LET GO",
+        "artistName" : "Central Cee",
+        "albumName" : "LET GO",
+        "trackUri" : "spotify:track:3zkyus0njMCL6phZmNNEeN"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Bad Habit",
+        "artistName" : "Steve Lacy",
+        "albumName" : "Gemini Rights",
+        "trackUri" : "spotify:track:4k6Uh1HXdhtusDW5y8Gbvy"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Less Than Zero",
+        "artistName" : "The Weeknd",
+        "albumName" : "Dawn FM",
+        "trackUri" : "spotify:track:2D4dV2KXDTszzJ3p3cFqhA"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "How Do I Make You Love Me?",
+        "artistName" : "The Weeknd",
+        "albumName" : "Dawn FM",
+        "trackUri" : "spotify:track:2Ghp894n1laIf2w98VeAOJ"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Out of Time",
+        "artistName" : "The Weeknd",
+        "albumName" : "Dawn FM",
+        "trackUri" : "spotify:track:2SLwbpExuoBDZBpjfefCtV"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Stuck On You",
+        "artistName" : "GIVĒON",
+        "albumName" : "When It's All Said And Done... Take Time",
+        "trackUri" : "spotify:track:3LBM25IgxI9y549SiYxtSi"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "For Tonight",
+        "artistName" : "GIVĒON",
+        "albumName" : "Give Or Take",
+        "trackUri" : "spotify:track:1TlTzdsEpgfsmbuNfYmWfG"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "As You Are",
+        "artistName" : "The Weeknd",
+        "albumName" : "Beauty Behind The Madness",
+        "trackUri" : "spotify:track:3H3qBumaYj67PT3aMEBvAP"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Angel",
+        "artistName" : "The Weeknd",
+        "albumName" : "Beauty Behind The Madness",
+        "trackUri" : "spotify:track:0wzPHTgOtFIDhk2rD3Au4x"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Acquainted",
+        "artistName" : "The Weeknd",
+        "albumName" : "Beauty Behind The Madness",
+        "trackUri" : "spotify:track:7uJH0YdSZL6psjxI6Xy08b"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Heartbreak Anniversary",
+        "artistName" : "GIVĒON",
+        "albumName" : "TAKE TIME",
+        "trackUri" : "spotify:track:3FAJ6O0NOHQV8Mc5Ri6ENp"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Glimpse of Us",
+        "artistName" : "Joji",
+        "albumName" : "SMITHEREENS",
+        "trackUri" : "spotify:track:4ewazQLXFTDC8XvCbhvtXs"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Can't Feel My Face",
+        "artistName" : "The Weeknd",
+        "albumName" : "Beauty Behind The Madness",
+        "trackUri" : "spotify:track:22VdIZQfgXJea34mQxlt81"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "I Feel It Coming",
+        "artistName" : "The Weeknd",
+        "albumName" : "Starboy",
+        "trackUri" : "spotify:track:5GXAXm5YOmYT0kL5jHvYBt"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "I Found You (with Calvin Harris)",
+        "artistName" : "benny blanco",
+        "albumName" : "FRIENDS KEEP SECRETS",
+        "trackUri" : "spotify:track:1kQhi22kyluRCnIPAXtxEZ"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Meet Me At Our Spot",
+        "artistName" : "THE ANXIETY",
+        "albumName" : "THE ANXIETY",
+        "trackUri" : "spotify:track:07MDkzWARZaLEdKxo6yArG"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Dandelions",
+        "artistName" : "Ruth B.",
+        "albumName" : "Safe Haven",
+        "trackUri" : "spotify:track:2eAvDnpXP5W0cVtiI0PUxV"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "The Color Violet",
+        "artistName" : "Tory Lanez",
+        "albumName" : "Alone At Prom",
+        "trackUri" : "spotify:track:3azJifCSqg9fRij2yKIbWz"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Teenage Fever",
+        "artistName" : "Drake",
+        "albumName" : "More Life",
+        "trackUri" : "spotify:track:6n3HGiq4v35D6eFOSwqYuo"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "Call Out My Name",
+        "artistName" : "The Weeknd",
+        "albumName" : "My Dear Melancholy,",
+        "trackUri" : "spotify:track:09mEdoA6zrmBPgTEN5qXmN"
+      },
+      "addedDate" : "2024-07-09"
+    }, {
+      "track" : {
+        "trackName" : "In Your Eyes",
+        "artistName" : "The Weeknd",
+        "albumName" : "After Hours",
+        "trackUri" : "spotify:track:7szuecWAPwGoV1e5vGu8tl"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Shivers",
+        "artistName" : "Ed Sheeran",
+        "albumName" : "=",
+        "trackUri" : "spotify:track:50nfwKoDiSYg8zOCREWAm5"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Talk",
+        "artistName" : "Khalid",
+        "albumName" : "Talk",
+        "trackUri" : "spotify:track:0rTV5WefWd1J3OwIheTzxM"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Pretty",
+        "artistName" : "The Weeknd",
+        "albumName" : "Kiss Land",
+        "trackUri" : "spotify:track:0ei3uNcwJOiUocuks1vWcb"
+      },
+      "addedDate" : "2024-07-10"
+    }, {
+      "track" : {
+        "trackName" : "Stand By Me",
+        "artistName" : "Ben E. King",
+        "albumName" : "Don't Play That Song",
+        "trackUri" : "spotify:track:3SdTKo2uVsxFblQjpScoHy"
+      },
+      "addedDate" : "2024-08-01"
+    } ],
+    "numberOfFollowers" : 1
+  }, {
+    "name" : "Amharic",
+    "lastModifiedDate" : "2024-11-15",
+    "collaborators" : [ ],
+    "items" : [ {
+      "track" : {
+        "trackName" : "Tsigereda",
+        "artistName" : "Shewandagne Hailu",
+        "albumName" : "Sik Alegn",
+        "trackUri" : "spotify:track:0IINCTLF2xbhqCjYYYKqly"
+      },
+      "addedDate" : "2023-10-28"
+    }, {
+      "track" : {
+        "trackName" : "Ychalal",
+        "artistName" : "Abdu Kiar",
+        "albumName" : "Fikir Beamargna",
+        "trackUri" : "spotify:track:3geQcKYV0LSvqKNfRNY7An"
+      },
+      "addedDate" : "2023-11-22"
+    }, {
+      "track" : {
+        "trackName" : "Etie Mietie",
+        "artistName" : "Abdu Kiar",
+        "albumName" : "Fikir Beamargna",
+        "trackUri" : "spotify:track:6G3g8j4PAPw7noaGPQOKiG"
+      },
+      "addedDate" : "2023-12-04"
+    }, {
+      "track" : {
+        "trackName" : "Atgebam Alugn",
+        "artistName" : "Lij Michael",
+        "albumName" : "Atgebam Alugn",
+        "trackUri" : "spotify:track:3rdvilTk173NYhZcxQA1mT"
+      },
+      "addedDate" : "2023-12-10"
+    }, {
+      "track" : {
+        "trackName" : "Sitotash",
+        "artistName" : "Shewandagne Hailu",
+        "albumName" : "Sitotash",
+        "trackUri" : "spotify:track:6nrwiYRgFPH9fWoMaI0HjV"
+      },
+      "addedDate" : "2024-08-08"
+    }, {
+      "track" : {
+        "trackName" : "Eshururu",
+        "artistName" : "Aster Aweke",
+        "albumName" : "Aster's Ballads",
+        "trackUri" : "spotify:track:1fRwnOnmkXMHVYqxPC6q2h"
+      },
+      "addedDate" : "2024-09-28"
+    }, {
+      "track" : {
+        "trackName" : "Yefikr Mrchay",
+        "artistName" : "Michael Belayneh",
+        "albumName" : "Ante Godana",
+        "trackUri" : "spotify:track:3isJiU3US5yIh8GltAi02o"
+      },
+      "addedDate" : "2024-11-15"
+    }, {
+      "track" : {
+        "trackName" : "Lemalmh",
+        "artistName" : "Mikaya Behailu",
+        "albumName" : "Lemalmh",
+        "trackUri" : "spotify:track:71Er9t7jOEIDxpov9CYxaR"
+      },
+      "addedDate" : "2024-11-15"
+    }, {
+      "track" : {
+        "trackName" : "Sebeb",
+        "artistName" : "Mikaya Behailu",
+        "albumName" : "Sebeb",
+        "trackUri" : "spotify:track:6Oh7YR8XYOqLU8YoqWQ5KU"
+      },
+      "addedDate" : "2024-11-15"
+    } ],
+    "numberOfFollowers" : 1
+  } ]
+}
