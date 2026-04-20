@@ -19,6 +19,7 @@ class DBHelper {
     return _database!;
   }
 
+  // Creates/opens the local SQLite database and applies migrations.
   Future<Database> initDB() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'digital_lifelines.db');
@@ -253,6 +254,7 @@ class DBHelper {
     return {'total': total, 'favorites': favorites};
   }
 
+  // Small example payload shown in the UI for users who want a starter template.
   Map<String, dynamic> buildTemplateJson() {
     return {
       'schema_version': 1,
@@ -282,6 +284,7 @@ class DBHelper {
     };
   }
 
+  // Exports full app data to a portable JSON structure.
   Future<Map<String, dynamic>> exportToJson() async {
     final db = await database;
     final timelines = await getTimelines();
@@ -347,9 +350,10 @@ class DBHelper {
     };
   }
 
+  // Imports timeline data with support for replace, merge-skip, and merge-update modes.
   Future<ImportResult> importFromJson(
     String jsonText, {
-    bool replaceExisting = false,
+    ImportMode mode = ImportMode.mergeSkipDuplicates,
   }) async {
     final decoded = jsonDecode(jsonText);
     if (decoded is! Map<String, dynamic>) {
@@ -367,13 +371,29 @@ class DBHelper {
     var importedFields = 0;
     var importedEntries = 0;
     var importedValues = 0;
+    var skippedEntries = 0;
+    var updatedEntries = 0;
 
+    // One transaction keeps import atomic and faster.
     await db.transaction((txn) async {
-      if (replaceExisting) {
+      if (mode == ImportMode.replaceAll) {
         await txn.rawDelete('DELETE FROM "values"');
         await txn.rawDelete('DELETE FROM entries');
         await txn.rawDelete('DELETE FROM fields');
         await txn.rawDelete('DELETE FROM timelines');
+      }
+
+      final timelineIdsByName = <String, int>{};
+      if (mode != ImportMode.replaceAll) {
+        final existingTimelines = await txn.query('timelines');
+        for (final row in existingTimelines) {
+          final id = row['id'] as int?;
+          final name = (row['name'] ?? '').toString();
+          if (id == null) continue;
+          final normalized = _normalizeKey(name);
+          if (normalized.isEmpty) continue;
+          timelineIdsByName[normalized] = id;
+        }
       }
 
       for (final timelineRaw in timelinesRaw) {
@@ -382,32 +402,70 @@ class DBHelper {
         final timelineName = (timelineRaw['name'] ?? '').toString().trim();
         if (timelineName.isEmpty) continue;
 
-        final timelineId = await txn.insert('timelines', {
-          'name': timelineName,
-        });
-        importedTimelines++;
+        final timelineNameKey = _normalizeKey(timelineName);
+        int timelineId;
+        final matchedTimelineId = timelineIdsByName[timelineNameKey];
+        if (mode != ImportMode.replaceAll && matchedTimelineId != null) {
+          timelineId = matchedTimelineId;
+        } else {
+          timelineId = await txn.insert('timelines', {'name': timelineName});
+          importedTimelines++;
+          timelineIdsByName[timelineNameKey] = timelineId;
+        }
 
         final fieldsRaw = timelineRaw['fields'];
         if (fieldsRaw is! List) continue;
 
         final fieldIdsByName = <String, int>{};
+        final existingFields = await txn.query(
+          'fields',
+          where: 'timeline_id = ?',
+          whereArgs: [timelineId],
+        );
+        for (final existingField in existingFields) {
+          final fieldId = existingField['id'] as int?;
+          final fieldName = (existingField['name'] ?? '').toString().trim();
+          if (fieldId == null || fieldName.isEmpty) continue;
+          fieldIdsByName[_normalizeKey(fieldName)] = fieldId;
+        }
+
         for (final fieldRaw in fieldsRaw) {
           if (fieldRaw is! Map) continue;
 
           final fieldName = (fieldRaw['name'] ?? '').toString().trim();
           if (fieldName.isEmpty) continue;
+          final fieldNameKey = _normalizeKey(fieldName);
 
           final rawType = (fieldRaw['type'] ?? 'text').toString().trim();
           final fieldType = rawType == 'number' ? 'number' : 'text';
 
-          final fieldId = await txn.insert('fields', {
-            'timeline_id': timelineId,
-            'name': fieldName,
-            'type': fieldType,
-          });
-          importedFields++;
-          fieldIdsByName[fieldName] = fieldId;
+          final existingFieldId = fieldIdsByName[fieldNameKey];
+          if (existingFieldId != null) {
+            if (mode == ImportMode.mergeUpdateDuplicates) {
+              await txn.update(
+                'fields',
+                {'type': fieldType},
+                where: 'id = ?',
+                whereArgs: [existingFieldId],
+              );
+            }
+          } else {
+            final fieldId = await txn.insert('fields', {
+              'timeline_id': timelineId,
+              'name': fieldName,
+              'type': fieldType,
+            });
+            importedFields++;
+            fieldIdsByName[fieldNameKey] = fieldId;
+          }
         }
+
+        // Build duplicate lookup once per timeline for consistent merge behavior.
+        final duplicateIndex = await _buildEntryDuplicateIndex(
+          txn: txn,
+          timelineId: timelineId,
+          fieldIdsByName: fieldIdsByName,
+        );
 
         final entriesRaw = timelineRaw['entries'];
         if (entriesRaw is! List) continue;
@@ -420,30 +478,103 @@ class DBHelper {
               ? createdAtRaw
               : DateTime.now().millisecondsSinceEpoch;
 
-          final entryId = await txn.insert('entries', {
-            'timeline_id': timelineId,
-            'created_at': createdAt,
-            'is_favorite': (entryRaw['is_favorite'] == true ||
-                    entryRaw['is_favorite'] == 1)
-                ? 1
-                : 0,
-          });
-          importedEntries++;
-
           final valuesRaw = entryRaw['values'];
           if (valuesRaw is! Map) continue;
 
+          final valuesByFieldName = <String, String>{};
+          final valuesByFieldId = <int, String>{};
           for (final pair in valuesRaw.entries) {
             final fieldName = pair.key.toString();
-            final fieldId = fieldIdsByName[fieldName];
+            final normalizedFieldName = _normalizeKey(fieldName);
+            if (normalizedFieldName.isEmpty) continue;
+
+            final fieldId = fieldIdsByName[normalizedFieldName];
             if (fieldId == null) continue;
 
             final valueText = (pair.value ?? '').toString();
-            await txn.rawInsert(
-              'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-              [entryId, fieldId, valueText],
+            valuesByFieldName[normalizedFieldName] = valueText;
+            valuesByFieldId[fieldId] = valueText;
+          }
+
+          final entryNameKey = _extractEntryNameKey(valuesByFieldName);
+          final signature = _buildEntrySignature(valuesByFieldName);
+
+          int? existingEntryId;
+          if (entryNameKey != null) {
+            existingEntryId = duplicateIndex.entryIdByName[entryNameKey];
+          }
+          if (existingEntryId == null && signature.isNotEmpty) {
+            existingEntryId = duplicateIndex.entryIdBySignature[signature];
+          }
+
+          if (mode == ImportMode.mergeSkipDuplicates &&
+              existingEntryId != null) {
+            skippedEntries++;
+            continue;
+          }
+
+          final isFavorite =
+              (entryRaw['is_favorite'] == true || entryRaw['is_favorite'] == 1)
+              ? 1
+              : 0;
+
+          int entryId;
+          if (mode == ImportMode.mergeUpdateDuplicates &&
+              existingEntryId != null) {
+            entryId = existingEntryId;
+            await txn.update(
+              'entries',
+              {'created_at': createdAt, 'is_favorite': isFavorite},
+              where: 'id = ?',
+              whereArgs: [entryId],
             );
-            importedValues++;
+            updatedEntries++;
+          } else {
+            entryId = await txn.insert('entries', {
+              'timeline_id': timelineId,
+              'created_at': createdAt,
+              'is_favorite': isFavorite,
+            });
+            importedEntries++;
+          }
+
+          for (final pair in valuesByFieldId.entries) {
+            final fieldId = pair.key;
+            final valueText = pair.value;
+
+            if (mode == ImportMode.mergeUpdateDuplicates &&
+                existingEntryId != null) {
+              final existingValue = await txn.rawQuery(
+                'SELECT id FROM "values" WHERE entry_id = ? AND field_id = ? LIMIT 1',
+                [entryId, fieldId],
+              );
+              if (existingValue.isEmpty) {
+                await txn.rawInsert(
+                  'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+                  [entryId, fieldId, valueText],
+                );
+                importedValues++;
+              } else {
+                final valueId = existingValue.first['id'] as int;
+                await txn.rawUpdate(
+                  'UPDATE "values" SET value = ? WHERE id = ?',
+                  [valueText, valueId],
+                );
+              }
+            } else {
+              await txn.rawInsert(
+                'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+                [entryId, fieldId, valueText],
+              );
+              importedValues++;
+            }
+          }
+
+          if (entryNameKey != null) {
+            duplicateIndex.entryIdByName[entryNameKey] = entryId;
+          }
+          if (signature.isNotEmpty) {
+            duplicateIndex.entryIdBySignature[signature] = entryId;
           }
         }
       }
@@ -454,20 +585,121 @@ class DBHelper {
       fields: importedFields,
       entries: importedEntries,
       values: importedValues,
+      skippedEntries: skippedEntries,
+      updatedEntries: updatedEntries,
+    );
+  }
+
+  // Normalizes user-provided keys to make matching case-insensitive.
+  String _normalizeKey(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  // Uses title/name as a primary duplicate key when available.
+  String? _extractEntryNameKey(Map<String, String> valuesByFieldName) {
+    final title = valuesByFieldName['title'];
+    final name = valuesByFieldName['name'];
+
+    final primary = (title ?? name ?? '').trim();
+    if (primary.isEmpty) return null;
+    return _normalizeKey(primary);
+  }
+
+  // Fallback duplicate signature across all fields.
+  String _buildEntrySignature(Map<String, String> valuesByFieldName) {
+    final pairs = valuesByFieldName.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return pairs
+        .map((pair) => '${pair.key}:${_normalizeKey(pair.value)}')
+        .join('|');
+  }
+
+  // Reads existing entries and builds indexes for duplicate detection.
+  Future<_EntryDuplicateIndex> _buildEntryDuplicateIndex({
+    required Transaction txn,
+    required int timelineId,
+    required Map<String, int> fieldIdsByName,
+  }) async {
+    final rows = await txn.rawQuery(
+      'SELECT e.id AS entry_id, f.id AS field_id, v.value AS value_text '
+      'FROM entries e '
+      'LEFT JOIN "values" v ON v.entry_id = e.id '
+      'LEFT JOIN fields f ON f.id = v.field_id '
+      'WHERE e.timeline_id = ? '
+      'ORDER BY e.id ASC',
+      [timelineId],
+    );
+
+    final fieldNameById = <int, String>{
+      for (final pair in fieldIdsByName.entries) pair.value: pair.key,
+    };
+    final valuesByEntryId = <int, Map<String, String>>{};
+
+    for (final row in rows) {
+      final entryId = row['entry_id'] as int?;
+      if (entryId == null) continue;
+
+      final fieldId = row['field_id'] as int?;
+      if (fieldId == null) continue;
+
+      final fieldName = fieldNameById[fieldId];
+      if (fieldName == null) continue;
+
+      final valueText = (row['value_text'] ?? '').toString();
+      valuesByEntryId.putIfAbsent(entryId, () => {})[fieldName] = valueText;
+    }
+
+    final byName = <String, int>{};
+    final bySignature = <String, int>{};
+
+    for (final pair in valuesByEntryId.entries) {
+      final entryId = pair.key;
+      final values = pair.value;
+
+      final nameKey = _extractEntryNameKey(values);
+      if (nameKey != null) {
+        byName[nameKey] = entryId;
+      }
+
+      final signature = _buildEntrySignature(values);
+      if (signature.isNotEmpty) {
+        bySignature[signature] = entryId;
+      }
+    }
+
+    return _EntryDuplicateIndex(
+      entryIdByName: byName,
+      entryIdBySignature: bySignature,
     );
   }
 }
+
+enum ImportMode { replaceAll, mergeSkipDuplicates, mergeUpdateDuplicates }
 
 class ImportResult {
   final int timelines;
   final int fields;
   final int entries;
   final int values;
+  final int skippedEntries;
+  final int updatedEntries;
 
   const ImportResult({
     required this.timelines,
     required this.fields,
     required this.entries,
     required this.values,
+    this.skippedEntries = 0,
+    this.updatedEntries = 0,
+  });
+}
+
+class _EntryDuplicateIndex {
+  final Map<String, int> entryIdByName;
+  final Map<String, int> entryIdBySignature;
+
+  _EntryDuplicateIndex({
+    required this.entryIdByName,
+    required this.entryIdBySignature,
   });
 }
