@@ -32,12 +32,14 @@ class _CreateTimelineScreenState extends State<CreateTimelineScreen> {
     super.dispose();
   }
 
+  // Adds one field row in the form.
   void _addFieldDraft() {
     setState(() {
       _fieldDrafts.add(_FieldDraft());
     });
   }
 
+  // Removes a field row and disposes its controller.
   void _removeFieldDraft(int index) {
     final draft = _fieldDrafts[index];
     draft.controller.dispose();
@@ -46,6 +48,7 @@ class _CreateTimelineScreenState extends State<CreateTimelineScreen> {
     });
   }
 
+  // Validates form, creates timeline, then inserts all configured fields.
   Future<void> _saveTimeline() async {
     final timelineName = _timelineNameController.text.trim();
     if (timelineName.isEmpty) {

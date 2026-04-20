@@ -1,5 +1,5 @@
-name: digital_lifelines
-description: "A data gathering tool with a twist. Capture what matters and keep your favorite moments close."
+name: digitallifelines
+description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.4
+  sdk: ^3.9.2
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -35,8 +35,13 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   sqflite: ^2.4.2
-  file_picker: ^11.0.2
   path: ^1.9.1
+  path_provider: ^2.1.5
+  share_plus: ^12.0.2
+  open_filex: ^4.7.0
+  file_picker: ^10.3.10
+  file_saver: ^0.3.1
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:
@@ -47,7 +52,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -59,6 +64,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/spotify.png
+    - assets/goodreads.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

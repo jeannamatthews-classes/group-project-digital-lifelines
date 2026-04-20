@@ -1,6 +1,6 @@
 {
-    "name": "digital_lifelines",
-    "short_name": "digital_lifelines",
+    "name": "digitallifelines",
+    "short_name": "digitallifelines",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
