@@ -32,6 +32,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     _loadData();
   }
 
+  // Loads fields and entries for the active timeline and prepares value maps.
   Future<void> _loadData() async {
     final timelineId = widget.timeline.id;
     if (timelineId == null) return;
@@ -54,6 +55,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     });
   }
 
+  // Navigates to add-entry form.
   Future<void> _openAddEntry() async {
     final created = await Navigator.push<bool>(
       context,
@@ -67,6 +69,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     }
   }
 
+  // Navigates to edit-entry form.
   Future<void> _openEditEntry(Entry entry) async {
     final updated = await Navigator.push<bool>(
       context,
@@ -80,6 +83,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
     }
   }
 
+  // Deletes one entry after user confirmation.
   Future<void> _deleteEntry(Entry entry) async {
     final entryId = entry.id;
     if (entryId == null) return;
@@ -96,6 +100,11 @@ class _TimelineScreenState extends State<TimelineScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+                shadowColor: Colors.red.withValues(alpha: 0.3),
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Delete'),
             ),
@@ -110,15 +119,20 @@ class _TimelineScreenState extends State<TimelineScreen> {
     await _loadData();
   }
 
+  // Toggles favorite flag and reloads list ordering.
   Future<void> _toggleFavorite(Entry entry) async {
     final entryId = entry.id;
     if (entryId == null) return;
 
     final nextFavorite = !entry.isFavorite;
-    await _dbHelper.setEntryFavorite(entryId: entryId, isFavorite: nextFavorite);
+    await _dbHelper.setEntryFavorite(
+      entryId: entryId,
+      isFavorite: nextFavorite,
+    );
     await _loadData();
   }
 
+  // Applies favorites filter + text search for the rendered list.
   List<_EntryData> get _visibleEntries {
     final query = _searchQuery.trim().toLowerCase();
 
@@ -142,34 +156,69 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.timeline.name),
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: Text(
+          widget.timeline.name,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh_rounded),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+            child: IconButton(
+              tooltip: 'Refresh',
+              onPressed: _loadData,
+              icon: const Icon(
+                Icons.refresh_rounded,
+                color: AppColors.mutedText,
+              ),
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.favorite_rounded,
+                      Icons.star_rounded,
                       color: AppColors.accent,
-                      size: 14,
+                      size: 16,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Text(
                       '${_entries.where((e) => e.entry.isFavorite).length}',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.accent,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -183,21 +232,41 @@ class _TimelineScreenState extends State<TimelineScreen> {
           : Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                   child: TextField(
                     onChanged: (value) {
                       setState(() {
                         _searchQuery = value;
                       });
                     },
-                    decoration: const InputDecoration(
-                      hintText: 'Search life points...',
-                      prefixIcon: Icon(Icons.search),
+                    decoration: InputDecoration(
+                      hintText: 'Search points...',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: AppColors.mutedText,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
                     ),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       ChoiceChip(
@@ -207,9 +276,12 @@ class _TimelineScreenState extends State<TimelineScreen> {
                             _showFavoritesOnly = false;
                           });
                         },
-                        label: const Text('All'),
+                        label: const Text(
+                          'All Points',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       ChoiceChip(
                         selected: _showFavoritesOnly,
                         onSelected: (_) {
@@ -217,7 +289,21 @@ class _TimelineScreenState extends State<TimelineScreen> {
                             _showFavoritesOnly = true;
                           });
                         },
-                        label: const Text('Favorites'),
+                        label: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              size: 16,
+                              color: AppColors.accent,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Favorites',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -236,7 +322,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
                               entry: item.entry,
                               fields: _fields,
                               valuesByFieldId: item.values,
-                              onToggleFavorite: () => _toggleFavorite(item.entry),
+                              timelineName: widget.timeline.name,
+                              onToggleFavorite: () =>
+                                  _toggleFavorite(item.entry),
                               onEdit: () => _openEditEntry(item.entry),
                               onDelete: () => _deleteEntry(item.entry),
                             );
@@ -247,8 +335,11 @@ class _TimelineScreenState extends State<TimelineScreen> {
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddEntry,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Entry'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'Add Entry',
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        ),
       ),
     );
   }
