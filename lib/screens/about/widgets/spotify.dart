@@ -170,7 +170,7 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
 
     FilePickerResult? picked;
     try {
-      picked = await FilePicker.platform.pickFiles(
+      picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         withData: true,
