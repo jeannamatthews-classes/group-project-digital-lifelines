@@ -57,15 +57,13 @@ class _SplashScreenState extends State<SplashScreen>
         curve: const Interval(0.34, 0.8, curve: Curves.easeOut),
       ),
     );
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0, 0.18),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _introController,
-        curve: const Interval(0.28, 0.8, curve: Curves.easeOutCubic),
-      ),
-    );
+    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _introController,
+            curve: const Interval(0.28, 0.8, curve: Curves.easeOutCubic),
+          ),
+        );
     _subtitleFade = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _introController,
@@ -114,10 +112,7 @@ class _SplashScreenState extends State<SplashScreen>
         final t = _orbitController.value * 2 * math.pi;
         final x = math.cos(t + angle) * radius;
         final y = math.sin(t + angle) * (radius * 0.45);
-        return Transform.translate(
-          offset: Offset(x, y),
-          child: child,
-        );
+        return Transform.translate(offset: Offset(x, y), child: child);
       },
       child: Container(
         width: size,

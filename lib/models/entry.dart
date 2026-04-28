@@ -1,3 +1,4 @@
+// A single recorded point inside a timeline.
 class Entry {
   final int? id;
   final int timelineId;
@@ -11,6 +12,7 @@ class Entry {
     this.isFavorite = false,
   });
 
+  // Converts this model to a SQLite-compatible map.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -20,6 +22,7 @@ class Entry {
     };
   }
 
+  // Rebuilds the model from a SQLite row.
   factory Entry.fromMap(Map<String, dynamic> map) {
     return Entry(
       id: map['id'] as int?,

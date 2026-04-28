@@ -1,3 +1,4 @@
+// Stores one field value for a specific entry.
 class EntryValue {
   final int? id;
   final int entryId;
@@ -11,10 +12,12 @@ class EntryValue {
     required this.value,
   });
 
+  // Converts this model to a SQLite-compatible map.
   Map<String, dynamic> toMap() {
     return {'id': id, 'entry_id': entryId, 'field_id': fieldId, 'value': value};
   }
 
+  // Rebuilds the model from a SQLite row.
   factory EntryValue.fromMap(Map<String, dynamic> map) {
     return EntryValue(
       id: map['id'] as int?,

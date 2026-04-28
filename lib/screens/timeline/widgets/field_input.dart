@@ -17,10 +17,7 @@ class FieldInput extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            field.name,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+          Text(field.name, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           TextField(
             controller: controller,
