@@ -7,9 +7,11 @@ import 'screens/splash/splash_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
+  // App entry point.
   runApp(const DigitalLifelinesApp());
 }
 
+// Root app widget that wires global theme and initial route.
 class DigitalLifelinesApp extends StatelessWidget {
   const DigitalLifelinesApp({super.key});
 
@@ -33,6 +35,7 @@ class RootNavScreen extends StatefulWidget {
 class _RootNavScreenState extends State<RootNavScreen> {
   int _currentIndex = 0;
 
+  // We keep tabs alive by using IndexedStack in build.
   final List<Widget> _screens = const [
     HomeScreen(),
     RecordScreen(),
@@ -42,6 +45,7 @@ class _RootNavScreenState extends State<RootNavScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // IndexedStack preserves each screen state while switching tabs.
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,

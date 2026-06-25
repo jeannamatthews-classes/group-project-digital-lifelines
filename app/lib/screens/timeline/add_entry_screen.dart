@@ -26,6 +26,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   bool _isSaving = false;
   bool _isFavorite = false;
 
+  // Reuses this screen for both create and edit flows.
   bool get _isEditMode => widget.entry != null;
 
   @override
@@ -42,6 +43,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     super.dispose();
   }
 
+  // Loads timeline schema and, in edit mode, pre-fills existing values.
   Future<void> _loadFields() async {
     final timelineId = widget.timeline.id;
     if (timelineId == null) return;
@@ -71,6 +73,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     });
   }
 
+  // Persists entry and all field values.
   Future<void> _saveEntry() async {
     final timelineId = widget.timeline.id;
     if (timelineId == null) return;
@@ -137,11 +140,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: SwitchListTile(
                     value: _isFavorite,
@@ -152,11 +157,14 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                               _isFavorite = value;
                             });
                           },
-                    title: const Text('Mark as Favorite'),
+                    title: const Text(
+                      'Mark as Favorite',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
                 if (_fields.isEmpty)
                   const Text('No fields found for this timeline.')
                 else
