@@ -1,12 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Search, SlidersHorizontal, X, Check } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Search, SlidersHorizontal, X, Check, Loader2 } from "lucide-react"
 import { Button } from "../Components/buttons"
 import { Input } from "../Components/input"
-import { TemplateCard } from "../Components/template-card"
+import { TemplateCard } from "../Components/templateCard"
 import { DynamicIcon } from "../Components/icons"
-import { TEMPLATES, CATEGORIES, type Category } from "../../lib/templates"
+import { CATEGORIES, type Category } from "../../lib/templates"
+import { fetchAllTemplates, splitTags, type DbTemplate } from "../../lib/supabaseTemplates"
 import { cn } from "../../lib/utils"
 
 type SortKey = "popular" | "likes" | "recent" | "az"
@@ -18,14 +19,50 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "az", label: "A to Z" },
 ]
 
-const ALL_TAGS = Array.from(new Set(TEMPLATES.flatMap((t) => t.tags))).sort()
-
 export default function ExplorePage() {
+  const [templates, setTemplates] = useState<DbTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [query, setQuery] = useState("")
   const [activeCategories, setActiveCategories] = useState<Category[]>([])
   const [activeTags, setActiveTags] = useState<string[]>([])
   const [sort, setSort] = useState<SortKey>("popular")
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchAllTemplates()
+        if (!cancelled) setTemplates(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load templates.")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+
+    function handlePageShow(e: PageTransitionEvent) {
+      if (e.persisted) load()
+    }
+    window.addEventListener("pageshow", handlePageShow)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("pageshow", handlePageShow)
+    }
+  }, [])
+
+  const allTags = useMemo(
+    () => Array.from(new Set(templates.flatMap((t) => splitTags(t.tags)))).sort(),
+    [templates],
+  )
 
   function toggleCategory(cat: Category) {
     setActiveCategories((prev) =>
@@ -42,33 +79,35 @@ export default function ExplorePage() {
   }
 
   const filtered = useMemo(() => {
-    let result = TEMPLATES.filter((t) => {
+    let result = templates.filter((t) => {
+      const tagList = splitTags(t.tags)
+      const q = query.toLowerCase()
       const matchesQuery =
         !query ||
-        t.name.toLowerCase().includes(query.toLowerCase()) ||
-        t.description.toLowerCase().includes(query.toLowerCase()) ||
-        t.tags.some((tag) => tag.includes(query.toLowerCase()))
+        t.template_name.toLowerCase().includes(q) ||
+        (t.description ?? "").toLowerCase().includes(q) ||
+        tagList.some((tag) => tag.toLowerCase().includes(q))
       const matchesCategory =
         activeCategories.length === 0 || activeCategories.includes(t.category)
       const matchesTags =
-        activeTags.length === 0 || activeTags.every((tag) => t.tags.includes(tag))
+        activeTags.length === 0 || activeTags.every((tag) => tagList.includes(tag))
       return matchesQuery && matchesCategory && matchesTags
     })
 
     result = [...result].sort((a, b) => {
       switch (sort) {
         case "popular":
-          return b.downloads - a.downloads
+          return (b.downloads ?? 0) - (a.downloads ?? 0)
         case "likes":
-          return b.likes - a.likes
+          return (b.likes ?? 0) - (a.likes ?? 0)
         case "recent":
-          return b.updatedAt.localeCompare(a.updatedAt)
+          return b.created_at.localeCompare(a.created_at)
         case "az":
-          return a.name.localeCompare(b.name)
+          return a.template_name.localeCompare(b.template_name)
       }
     })
     return result
-  }, [query, activeCategories, activeTags, sort])
+  }, [templates, query, activeCategories, activeTags, sort])
 
   const hasFilters = activeCategories.length > 0 || activeTags.length > 0 || query.length > 0
 
@@ -90,7 +129,7 @@ export default function ExplorePage() {
               >
                 <span
                   className="flex h-7 w-7 items-center justify-center rounded-md"
-                  style={{ backgroundColor: `color-mix(in oklch, ${cat.color} 18%, transparent)` }}
+                  style={{ backgroundColor: cat.mutedColor, color: cat.color }}
                 >
                   <DynamicIcon name={cat.icon} className="h-4 w-4" />
                 </span>
@@ -105,7 +144,7 @@ export default function ExplorePage() {
       <div>
         <h3 className="text-sm font-semibold">Tags</h3>
         <div className="mt-3 flex flex-wrap gap-2">
-          {ALL_TAGS.map((tag) => {
+          {allTags.map((tag) => {
             const active = activeTags.includes(tag)
             return (
               <button
@@ -130,9 +169,9 @@ export default function ExplorePage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="max-w-2xl">
-        <h1 className="font-serif text-4xl font-bold tracking-tight">Explore Lifeline templates</h1>
+        <h1 className="font-serif text-4xl font-bold tracking-tight">Explore Timeline templates</h1>
         <p className="mt-2 text-pretty text-muted-foreground">
-          Browse {TEMPLATES.length} community-made timeline templates. Filter by category, tags, or
+          Browse {templates.length} community-made timeline templates. Filter by category, tags, or
           search for exactly what you want to track.
         </p>
       </div>
@@ -222,55 +261,70 @@ export default function ExplorePage() {
 
         {/* Results */}
         <div className="min-w-0 flex-1">
-          <div className="mb-5 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{filtered.length}</span> templates
-            </p>
-            {hasFilters && (
-              <div className="flex flex-wrap items-center gap-2">
-                {activeCategories.map((c) => (
-                  <span
-                    key={c}
-                    className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs"
-                  >
-                    {c}
-                    <button onClick={() => toggleCategory(c)} aria-label={`Remove ${c}`}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-                {activeTags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs"
-                  >
-                    {t}
-                    <button onClick={() => toggleTag(t)} aria-label={`Remove ${t}`}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          {error && (
+            <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              Couldn't load templates: {error}
+            </div>
+          )}
 
-          {filtered.length > 0 ? (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((template) => (
-                <TemplateCard key={template.id} template={template} />
-              ))}
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading templates...
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
-              <Search className="h-10 w-10 text-muted-foreground/50" />
-              <h3 className="mt-4 text-lg font-semibold">No templates found</h3>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Try adjusting your search or clearing some filters to see more results.
-              </p>
-              <Button variant="outline" className="mt-5" onClick={clearAll}>
-                Clear filters
-              </Button>
-            </div>
+            <>
+              <div className="mb-5 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{filtered.length}</span> templates
+                </p>
+                {hasFilters && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {activeCategories.map((c) => (
+                      <span
+                        key={c}
+                        className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs"
+                      >
+                        {c}
+                        <button onClick={() => toggleCategory(c)} aria-label={`Remove ${c}`}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {activeTags.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs"
+                      >
+                        {t}
+                        <button onClick={() => toggleTag(t)} aria-label={`Remove ${t}`}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {filtered.length > 0 ? (
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {filtered.map((template) => (
+                    <TemplateCard key={template.id} template={template} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
+                  <Search className="h-10 w-10 text-muted-foreground/50" />
+                  <h3 className="mt-4 text-lg font-semibold">No templates found</h3>
+                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                    Try adjusting your search or clearing some filters to see more results.
+                  </p>
+                  <Button variant="outline" className="mt-5" onClick={clearAll}>
+                    Clear filters
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

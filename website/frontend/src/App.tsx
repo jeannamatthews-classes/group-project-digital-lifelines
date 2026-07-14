@@ -10,6 +10,8 @@ import Template from './pages/template'
 import Signup from './pages/signup'
 import { Footer } from './Components/footer'
 import { PopUp } from './Components/popup'
+import EditTemplate from "./pages/editTemplate"
+import EditDashboard from "./pages/editDashboard"
 import './global.css'
 
 
@@ -31,8 +33,10 @@ function App() {
           <Route path="/upload" element={<Upload />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/template/:id" element={<Template />} />
+          <Route path="/template/:id/edit" element={<EditTemplate />} />
           <Route path="/auth" element={<Signup />} />
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/dashboard/edit" element={<EditDashboard />} />
         </Routes>
       </main>
       {!hideNavbar && <PopUp />}

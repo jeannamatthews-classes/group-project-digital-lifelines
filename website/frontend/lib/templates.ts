@@ -21,8 +21,6 @@ export interface TeamTemplate {
   description: string
   category: Category
   tags: string[]
-  color: string
-  icon: string
   author: {
     name: string
     handle: string
@@ -46,16 +44,74 @@ export type Category =
   | "Food & Drink"
   | "Hobbies"
 
-export const CATEGORIES: { name: Category; icon: string; color: string }[] = [
-  { name: "Health & Fitness", icon: "Activity", color: "var(--chart-2)" },
-  { name: "Entertainment", icon: "Clapperboard", color: "var(--chart-3)" },
-  { name: "Family & Kids", icon: "Baby", color: "var(--chart-4)" },
-  { name: "Travel", icon: "Plane", color: "var(--chart-1)" },
-  { name: "Personal Growth", icon: "Sprout", color: "var(--chart-2)" },
-  // { name: "Finance", icon: "Wallet", color: "var(--chart-5)" },
-  { name: "Food & Drink", icon: "UtensilsCrossed", color: "var(--chart-3)" },
-  { name: "Hobbies", icon: "Palette", color: "var(--chart-4)" },
+export const CATEGORIES: {
+  name: Category
+  icon: string
+  color: string
+  subtleColor: string
+  mutedColor: string
+}[] = [
+  {
+    name: "Health & Fitness",
+    icon: "Activity",
+    color: "var(--chart-1)",
+    subtleColor: "var(--chart-1-subtle)",
+    mutedColor: "var(--chart-1-muted)",
+  },
+  {
+    name: "Entertainment",
+    icon: "Clapperboard",
+    color: "var(--chart-2)",
+    subtleColor: "var(--chart-2-subtle)",
+    mutedColor: "var(--chart-2-muted)",
+  },
+  {
+    name: "Family & Kids",
+    icon: "Baby",
+    color: "var(--chart-3)",
+    subtleColor: "var(--chart-3-subtle)",
+    mutedColor: "var(--chart-3-muted)",
+  },
+  {
+    name: "Travel",
+    icon: "Plane",
+    color: "var(--chart-4)",
+    subtleColor: "var(--chart-4-subtle)",
+    mutedColor: "var(--chart-4-muted)",
+  },
+  {
+    name: "Personal Growth",
+    icon: "Sprout",
+    color: "var(--chart-5)",
+    subtleColor: "var(--chart-5-subtle)",
+    mutedColor: "var(--chart-5-muted)",
+  },
+  // {
+  //   name: "Finance",
+  //   icon: "Wallet",
+  //   color: "var(--chart-6)",
+  //   subtleColor: "var(--chart-6-subtle)",
+  //   mutedColor: "var(--chart-6-muted)",
+  // },
+  {
+    name: "Food & Drink",
+    icon: "UtensilsCrossed",
+    color: "var(--chart-7)",
+    subtleColor: "var(--chart-7-subtle)",
+    mutedColor: "var(--chart-7-muted)",
+  },
+  {
+    name: "Hobbies",
+    icon: "Palette",
+    color: "var(--chart-8)",
+    subtleColor: "var(--chart-8-subtle)",
+    mutedColor: "var(--chart-8-muted)",
+  },
 ]
+
+export function getCategoryMeta(category: Category) {
+  return CATEGORIES.find((c) => c.name === category)!
+}
 
 export const TEMPLATES: TeamTemplate[] = [
   {
@@ -66,8 +122,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "A clinical-grade timeline for tracking your blood pressure over time. Captures systolic, diastolic, pulse, and an optional note for context. Perfect for sharing trends with your doctor.",
     category: "Health & Fitness",
     tags: ["health", "medical", "daily", "vitals"],
-    color: "var(--chart-2)",
-    icon: "HeartPulse",
     author: { name: "Dr. Maya Chen", handle: "mayachen", avatarColor: "var(--chart-2)" },
     downloads: 4821,
     likes: 932,
@@ -90,8 +144,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "Keep a beautiful record of every movie you watch. Rate it, note who you watched with, and capture a one-line review. Includes a poster photo field.",
     category: "Entertainment",
     tags: ["movies", "reviews", "rating", "fun"],
-    color: "var(--chart-3)",
-    icon: "Clapperboard",
     author: { name: "Leo Park", handle: "leowatches", avatarColor: "var(--chart-3)" },
     downloads: 7204,
     likes: 1503,
@@ -115,8 +167,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "Never forget a single milestone. From first smile to first steps, record the moments that matter with date, a note, and a photo. A keepsake you'll treasure forever.",
     category: "Family & Kids",
     tags: ["baby", "milestones", "family", "memories"],
-    color: "var(--chart-4)",
-    icon: "Baby",
     author: { name: "Sofia Reyes", handle: "sofiamom", avatarColor: "var(--chart-4)" },
     downloads: 9870,
     likes: 2841,
@@ -139,8 +189,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "A rich travel timeline to log every trip. Record destination, dates, companions, highlights, and a rating. Includes a cover photo to remember the view.",
     category: "Travel",
     tags: ["travel", "adventure", "places", "memories"],
-    color: "var(--chart-1)",
-    icon: "Plane",
     author: { name: "Kai Nakamura", handle: "kaiwanders", avatarColor: "var(--chart-1)" },
     downloads: 5612,
     likes: 1209,
@@ -163,8 +211,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "For the avid reader. Log title, author, pages, your rating, and favorite quotes. Watch your reading habit grow over the year.",
     category: "Personal Growth",
     tags: ["books", "reading", "learning"],
-    color: "var(--chart-2)",
-    icon: "BookOpen",
     author: { name: "Amara Okafor", handle: "amarareads", avatarColor: "var(--chart-2)" },
     downloads: 6340,
     likes: 1788,
@@ -187,8 +233,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "A gentle daily check-in. Rate your mood, energy, and sleep, then jot down what influenced your day. Spot patterns over weeks and months.",
     category: "Personal Growth",
     tags: ["mood", "mental health", "daily", "wellness"],
-    color: "var(--chart-4)",
-    icon: "Smile",
     author: { name: "Jordan Bell", handle: "jbwellness", avatarColor: "var(--chart-4)" },
     downloads: 8120,
     likes: 2210,
@@ -210,8 +254,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "Track your training sessions with exercise type, duration, intensity, and how you felt. Built for consistency and progress.",
     category: "Health & Fitness",
     tags: ["fitness", "gym", "running", "strength"],
-    color: "var(--chart-2)",
-    icon: "Dumbbell",
     author: { name: "Marcus Lee", handle: "marcusfit", avatarColor: "var(--chart-2)" },
     downloads: 7890,
     likes: 1654,
@@ -233,8 +275,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "Log every brew. Record the roaster, origin, brew method, and tasting notes. Rate each cup and find your perfect roast.",
     category: "Food & Drink",
     tags: ["coffee", "tasting", "hobby"],
-    color: "var(--chart-3)",
-    icon: "Coffee",
     author: { name: "Nina Brewer", handle: "ninabrews", avatarColor: "var(--chart-3)" },
     downloads: 3210,
     likes: 876,
@@ -278,8 +318,6 @@ export const TEMPLATES: TeamTemplate[] = [
       "Track your plants from seed to harvest. Record what you planted, watering, growth notes, and photos as your garden flourishes.",
     category: "Hobbies",
     tags: ["gardening", "plants", "seasons"],
-    color: "var(--chart-2)",
-    icon: "Sprout",
     author: { name: "Tom Garcia", handle: "tomgrows", avatarColor: "var(--chart-2)" },
     downloads: 1840,
     likes: 521,

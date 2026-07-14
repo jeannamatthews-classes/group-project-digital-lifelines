@@ -40,7 +40,7 @@ const CAROUSEL_SLIDES: CarouselSlide[] = [
 export default function Carousel() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
-  const [autoPlay, setAutoPlay] = useState(true)
+  const [autoPlay, setAutoPlay] = useState(false)
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right")
 
   const totalDownloads = TEMPLATES.reduce((sum, t) => sum + t.downloads, 0)

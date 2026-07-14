@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Info,
   CheckCircle2,
+  Loader2,
 } from "lucide-react"
 import { Button } from "../Components/buttons"
 import { Input } from "../Components/input"
@@ -17,6 +18,7 @@ import { Textarea } from "../Components/textarea"
 import { Label } from "../Components/label"
 import { CATEGORIES, type Category, type FieldType } from "../../lib/templates"
 import { cn } from "../../lib/utils"
+import { supabase } from "../../lib/supabase"
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -27,6 +29,21 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "select", label: "Choice" },
   { value: "photo", label: "Photo" },
 ]
+
+const TEMPLATE_VERSION = 1.0
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    || "template"
+}
+
+function randomSlugSuffix(): string {
+  return Math.random().toString(36).slice(2, 6)
+}
 
 interface DraftField {
   id: string
@@ -47,6 +64,8 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function addField() {
@@ -92,23 +111,114 @@ export default function UploadPage() {
     .map((t) => t.trim())
     .filter(Boolean)
 
+  const namedFields = fields.filter((f) => f.name.trim())
+
   const previewJson = JSON.stringify(
     {
       name: name || "Untitled Timeline",
-      version: "1.0.0",
+      version: TEMPLATE_VERSION,
       category,
       tags: tagList,
-      fields: fields
-        .filter((f) => f.name)
-        .map((f) => ({
-          name: f.name,
-          type: f.type,
-          ...(f.unit ? { unit: f.unit } : {}),
-        })),
+      fields: namedFields.map((f) => ({
+        name: f.name,
+        type: f.type,
+        ...(f.unit ? { unit: f.unit } : {}),
+      })),
     },
     null,
     2,
   )
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitError(null)
+
+    if (namedFields.length === 0) {
+      setSubmitError("Add at least one named field before submitting.")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setSubmitError("You need to be logged in to submit a template.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // 1. Insert the template row, get back its generated id.
+      // Slugs must be unique — if the base slug is taken, retry once
+      // with a short random suffix appended.
+      const baseSlug = slugify(name)
+      let template: { id: string } | null = null
+      let templateError: { message: string; code?: string } | null = null
+
+      for (const candidateSlug of [baseSlug, `${baseSlug}-${randomSlugSuffix()}`]) {
+        const { data, error } = await supabase
+          .from("templates")
+          .insert({
+            slug: candidateSlug,
+            template_name: name,
+            category,
+            tags: tagList.join(", "),
+            tagline: tagline || null,
+            description: description || null,
+            version: TEMPLATE_VERSION,
+          })
+          .select()
+          .single()
+
+        if (!error) {
+          template = data
+          templateError = null
+          break
+        }
+
+        // 23505 = unique_violation — try the fallback slug, otherwise bail
+        if (error.code !== "23505") {
+          templateError = error
+          break
+        }
+        templateError = error
+      }
+
+      if (!template) {
+        setSubmitError(templateError?.message ?? "Failed to create template.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // 2. Insert the fields, linked to the new template
+      const fieldRows = namedFields.map((f, i) => ({
+        template_id: template.id,
+        name: f.name,
+        type: f.type,
+        unit: f.unit || null,
+        position: i,
+      }))
+
+      const { error: fieldsError } = await supabase
+        .from("template_fields")
+        .insert(fieldRows)
+
+      if (fieldsError) {
+        setSubmitError(fieldsError.message)
+        setIsSubmitting(false)
+        return
+      }
+
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Something went wrong.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   if (submitted) {
     return (
@@ -143,13 +253,7 @@ export default function UploadPage() {
         </p>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          setSubmitted(true)
-        }}
-        className="mt-10 grid gap-10 lg:grid-cols-3"
-      >
+      <form onSubmit={handleSubmit} className="mt-10 grid gap-10 lg:grid-cols-3">
         {/* Form */}
         <div className="flex flex-col gap-8 lg:col-span-2">
           {/* Dropzone */}
@@ -341,6 +445,12 @@ export default function UploadPage() {
             </div>
           </div>
 
+          {submitError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {submitError}
+            </div>
+          )}
+
           <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/40 p-4">
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -352,11 +462,20 @@ export default function UploadPage() {
           </div>
 
           <div className="flex gap-3">
-            <Button type="submit" size="lg">
-              <Check className="h-4 w-4" />
-              Submit template
+            <Button type="submit" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Submit template
+                </>
+              )}
             </Button>
-            <Button type="button" size="lg" variant="outline" asChild>
+            <Button type="button" size="lg" variant="outline" asChild disabled={isSubmitting}>
               <a href="/explore">Cancel</a>
             </Button>
           </div>
@@ -397,7 +516,7 @@ export default function UploadPage() {
                   ))}
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {fields.filter((f) => f.name).length} fields defined
+                  {namedFields.length} fields defined
                 </p>
               </div>
             </div>

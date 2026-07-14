@@ -1,23 +1,66 @@
-import { ArrowRight, Download, Search, Upload, Users, Disc2 } from "lucide-react"
+"use client"
+
+import { useEffect, useState } from "react"
+import { ArrowRight, Download, Search, Upload, Users, Disc2, Loader2 } from "lucide-react"
 import { Button } from "../Components/buttons"
-import { TEMPLATES, getFeatured, CATEGORIES } from "../../lib/templates"
+import { CATEGORIES } from "../../lib/templates"
 import { DynamicIcon } from "../Components/icons"
-import { TemplateCard } from "../Components/template-card"
-import  Carousel  from "../Components/carousel"
+import { TemplateCard } from "../Components/templateCard"
+import Carousel from "../Components/carousel"
+import { fetchFeaturedTemplates, fetchTrendingTemplates, type DbTemplate } from "../../lib/supabaseTemplates"
 
-export default function Landing(){
-    const featured = getFeatured()
-    const trending = [...TEMPLATES].sort((a, b) => b.downloads - a.downloads).slice(0, 8)
+export default function Landing() {
+  const [featured, setFeatured] = useState<DbTemplate[]>([])
+  const [trending, setTrending] = useState<DbTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-    return(
-        <>
-        {/* digital lifelines */}
+  useEffect(() => {
+    let cancelled = false
 
-        <Carousel />
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [featuredData, trendingData] = await Promise.all([
+          fetchFeaturedTemplates(8),
+          fetchTrendingTemplates(8),
+        ])
+        if (!cancelled) {
+          setFeatured(featuredData)
+          setTrending(trendingData)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load templates.")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+
+    function handlePageShow(e: PageTransitionEvent) {
+      if (e.persisted) load()
+    }
+    window.addEventListener("pageshow", handlePageShow)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("pageshow", handlePageShow)
+    }
+  }, [])
+
+  return (
+    <>
+      {/* digital lifelines */}
+
+      <Carousel />
 
       {/* categories */}
 
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Browse by category</h2>
@@ -33,7 +76,7 @@ export default function Landing(){
             >
               <div
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                style={{ backgroundColor: `color-mix(in oklch, ${cat.color} 18%, transparent)` }}
+                style={{ backgroundColor: cat.mutedColor, color: cat.color }}
               >
                 <DynamicIcon name={cat.icon} className="h-5 w-5" />
               </div>
@@ -84,54 +127,73 @@ export default function Landing(){
         </div>
       </section>
 
-        {/* featured */}
+      {error && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Couldn't load templates: {error}
+          </div>
+        </section>
+      )}
 
-      <section className="bg-card/50">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Featured templates</h2>
-              <p className="mt-1 text-muted-foreground">Hand-picked by the team.</p>
+      {loading && (
+        <section className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-16 text-muted-foreground sm:px-6 lg:px-8">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading templates...
+        </section>
+      )}
+
+      {/* featured */}
+
+      {!loading && featured.length > 0 && (
+        <section className="bg-card/50">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Featured templates</h2>
+                <p className="mt-1 text-muted-foreground">Hand-picked by the team.</p>
+              </div>
+              <Button asChild variant="outline" className="hidden sm:inline-flex">
+                <a href="/explore">
+                  View all
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
             </div>
-            <Button asChild variant="outline" className="hidden sm:inline-flex">
-              <a href="/explore">
-                View all
-                <ArrowRight className="h-4 w-4" />
-              </a>
-            </Button>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {featured.map((template) => (
+                <TemplateCard key={template.id} template={template} />
+              ))}
+            </div>
           </div>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {featured.map((template) => (
-              <TemplateCard key={template.id} template={template} />
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* trending */}
 
-      <section className="bg-card/50">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Trending templates</h2>
-              <p className="mt-1 text-muted-foreground">What's popular right now within the community.</p>
+      {!loading && trending.length > 0 && (
+        <section className="bg-card/50">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Trending templates</h2>
+                <p className="mt-1 text-muted-foreground">What's popular right now within the community.</p>
+              </div>
+              <Button asChild variant="outline" className="hidden sm:inline-flex">
+                <a href="/explore">
+                  View all
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
             </div>
-            <Button asChild variant="outline" className="hidden sm:inline-flex">
-              <a href="/explore">
-                View all
-                <ArrowRight className="h-4 w-4" />
-              </a>
-            </Button>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {trending.map((template) => (
+                <TemplateCard key={template.id} template={template} />
+              ))}
+            </div>
           </div>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {trending.map((template) => (
-              <TemplateCard key={template.id} template={template} />
-            ))}
-          </div>
-        </div>
-      </section>
-      
+        </section>
+      )}
+
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 border-y border-border bg-background/50">
         <div className="overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center text-primary-foreground sm:px-16">
@@ -151,6 +213,6 @@ export default function Landing(){
           </Button>
         </div>
       </section>
-        </>
-    )
+    </>
+  )
 }

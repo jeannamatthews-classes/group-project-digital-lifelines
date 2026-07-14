@@ -1,25 +1,51 @@
 "use client"
 
 import { Link, useLocation } from "react-router-dom"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "../../lib/utils"
 import { Button } from "./buttons"
 import { Menu, X, Activity, Search, Upload,User } from "lucide-react"
-// import { CURRENT_USER } from "../../lib/templates"
+import { supabase } from "../../lib/supabase"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 const NAV_LINKS = [
   { href: "/explore", label: "Explore" },
   { href: "/upload", label: "Upload" },
   { href: "/dashboard", label: "Dashboard" },
 ]
-const CURRENT_USER = null;
-const UserExists = CURRENT_USER !== null && CURRENT_USER !== undefined
 
 export function NavBar() {
 
     const location = useLocation()
     const pathname = location.pathname
     const [open, setOpen] = useState(false)
+
+    const [user, setUser] = useState<SupabaseUser | null>(null)
+
+    useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      setUser(user)
+    }
+
+    getUser()
+
+    // Listen for login/logout
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const isLoggedIn = () => user !== null
 
     return (
       <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
@@ -55,7 +81,7 @@ export function NavBar() {
             </Link>
           </Button>
           <Button asChild>
-            {UserExists ? (
+            {isLoggedIn() ? (
               <Link to="/upload">
                 <Upload className="h-4 w-4" />
                 Share a template
