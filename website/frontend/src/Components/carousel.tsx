@@ -71,7 +71,7 @@ export default function Carousel() {
     <section className="relative overflow-hidden border-y border-border">
       <div 
         className="relative"
-        onMouseEnter={() => setIsHovering(true)}
+        onMouseEnter={() => setIsHovering(false)}
         onMouseLeave={() => setIsHovering(false)}
       >
         {/* Carousel Slides */}

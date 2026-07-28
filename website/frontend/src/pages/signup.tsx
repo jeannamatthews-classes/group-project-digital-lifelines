@@ -28,6 +28,12 @@ export default function SignupPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          username: username.trim() || email.split("@")[0],
+          full_name: name.trim(),
+        },
+      },
     });
 
     if (error) {
@@ -44,6 +50,7 @@ export default function SignupPage() {
     // since signUp() may not return an active session if
     // email confirmation is required.
     alert("Account created! Please check your email to confirm, then log in.");
+    setMode("login");
   }
 
   async function Login() {
@@ -74,20 +81,24 @@ export default function SignupPage() {
       return;
     }
 
-    // If no profile exists yet, create one
+    // If no profile exists yet, create one from signup metadata
     if (profile.length === 0) {
+      const meta = user.user_metadata ?? {};
       const { error: insertError } = await supabase
         .from("users_profiles")
         .insert({
           id: user.id,
-          username: username || user.email?.split("@")[0],
-          full_name: name,
+          username: meta.username || user.email?.split("@")[0],
+          full_name: meta.full_name || "",
         });
 
       if (insertError) {
         alert(insertError.message);
         return;
       }
+
+      window.location.href = "/onboarding";
+      return;
     }
 
     window.location.href = "/explore";
@@ -218,22 +229,24 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="username">Username</Label>
-                <div className="relative mt-1.5">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="@username"
-                    className="pl-9"
-                    required
-                    autoComplete="username"
-                  />
+              {mode === "signup" && (
+                <div>
+                  <Label htmlFor="username">Username</Label>
+                  <div className="relative mt-1.5">
+                    <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="@username"
+                      className="pl-9"
+                      required
+                      autoComplete="username"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between">

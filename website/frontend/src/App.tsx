@@ -12,6 +12,7 @@ import { Footer } from './Components/footer'
 import { PopUp } from './Components/popup'
 import EditTemplate from "./pages/editTemplate"
 import EditDashboard from "./pages/editDashboard"
+import Onboarding from "./pages/onboarding"
 import './global.css'
 
 
@@ -19,7 +20,8 @@ function App() {
   const location = useLocation();
 
   const hideNavbar = [
-    "/auth"
+    "/auth",
+    "/onboarding",
   ].includes(location.pathname);
 
   return (
@@ -35,8 +37,9 @@ function App() {
           <Route path="/template/:id" element={<Template />} />
           <Route path="/template/:id/edit" element={<EditTemplate />} />
           <Route path="/auth" element={<Signup />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard/edit" element={<EditDashboard />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       {!hideNavbar && <PopUp />}

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Upload, Download, Heart, Settings, Pencil, TrendingUp, Loader2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Upload, Download, Heart, Settings, Pencil, TrendingUp, Loader2, LogOut } from "lucide-react"
 import { Button } from "../Components/buttons"
 import { TemplateCard } from "../Components/templateCard"
 import { supabase } from "../../lib/supabase"
@@ -49,6 +49,33 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notLoggedIn, setNotLoggedIn] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const settingsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!settingsOpen) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [settingsOpen])
+
+  async function handleLogout() {
+    setLoggingOut(true)
+    const { error: signOutError } = await supabase.auth.signOut()
+    if (signOutError) {
+      alert(signOutError.message)
+      setLoggingOut(false)
+      return
+    }
+    window.location.href = "/auth"
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -170,9 +197,34 @@ export default function DashboardPage() {
               Edit profile
             </a>
           </Button>
-          <Button variant="outline" size="icon" aria-label="Settings">
-            <Settings className="h-4 w-4" />
-          </Button>
+          <div className="relative" ref={settingsRef}>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            {settingsOpen && (
+              <div className="absolute right-0 z-10 mt-2 min-w-40 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-md">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-secondary disabled:opacity-60"
+                >
+                  {loggingOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
+                  )}
+                  {loggingOut ? "Logging out..." : "Log out"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
