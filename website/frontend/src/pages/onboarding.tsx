@@ -5,6 +5,7 @@ import { Camera, Check, Loader2, ArrowRight } from "lucide-react"
 import { Button } from "../Components/buttons"
 import { Textarea } from "../Components/textarea"
 import { Label } from "../Components/label"
+import { moderateFields, describeFlaggedFields } from "../../lib/moderation"
 import { supabase } from "../../lib/supabase"
 import {
   fetchProfile,
@@ -76,6 +77,14 @@ export default function OnboardingPage() {
 
     try {
       if (!opts?.skip) {
+        const moderation = await moderateFields({ Bio: bio })
+
+        if (moderation.flagged) {
+          setSaveError(describeFlaggedFields(moderation))
+          setIsSaving(false)
+          return
+        }
+
         let avatarUrl = profile?.avatar_url ?? null
 
         if (avatarFile) {

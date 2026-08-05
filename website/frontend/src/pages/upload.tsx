@@ -19,6 +19,7 @@ import { Label } from "../Components/label"
 import { CATEGORIES, type Category, type FieldType } from "../../lib/templates"
 import { cn } from "../../lib/utils"
 import { supabase } from "../../lib/supabase"
+import { moderateFields, describeFlaggedFields } from "../../lib/moderation"
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -141,6 +142,24 @@ export default function UploadPage() {
     setIsSubmitting(true)
 
     try {
+      // Server-side moderation gate — checked before anything is written.
+      const fieldsToCheck: Record<string, string> = {
+        "Template name": name,
+        Tagline: tagline,
+        Description: description,
+        Tags: tags,
+      }
+      namedFields.forEach((f, i) => {
+        fieldsToCheck[`Field ${i + 1} name`] = f.name
+      })
+
+      const moderation = await moderateFields(fieldsToCheck)
+      if (moderation.flagged) {
+        setSubmitError(describeFlaggedFields(moderation))
+        setIsSubmitting(false)
+        return
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()

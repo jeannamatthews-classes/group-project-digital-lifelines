@@ -14,8 +14,9 @@ import {
   colorForUsername,
   type DbProfile,
 } from "../../lib/supabaseTemplates"
+import { moderateFields, describeFlaggedFields } from "../../lib/moderation"
 
-export default function EditDashboard() {
+export default function EditProfilePage() {
   const [userId, setUserId] = useState<string | null | undefined>(undefined)
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -79,6 +80,13 @@ export default function EditDashboard() {
     setIsSaving(true)
 
     try {
+      const moderation = await moderateFields({ "Full name": fullName, Bio: bio })
+      if (moderation.flagged) {
+        setSaveError(describeFlaggedFields(moderation))
+        setIsSaving(false)
+        return
+      }
+
       let avatarUrl = profile?.avatar_url ?? null
 
       if (avatarFile) {

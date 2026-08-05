@@ -9,6 +9,7 @@ import { Label } from "../Components/label"
 import { CATEGORIES, type Category, type FieldType } from "../../lib/templates"
 import { supabase } from "../../lib/supabase"
 import { fetchTemplateBySlug, type DbTemplate } from "../../lib/supabaseTemplates"
+import { moderateFields, describeFlaggedFields } from "../../lib/moderation"
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -28,7 +29,7 @@ interface DraftField {
   unit: string
 }
 
-export default function EditTemplate() {
+export default function EditTemplatePage() {
   const path = typeof window !== "undefined" ? window.location.pathname : ""
   const slug = useMemo(() => {
     const parts = path.split("/").filter(Boolean)
@@ -121,6 +122,24 @@ export default function EditTemplate() {
     setIsSaving(true)
 
     try {
+      // Server-side moderation gate — checked before anything is written.
+      const fieldsToCheck: Record<string, string> = {
+        "Template name": name,
+        Tagline: tagline,
+        Description: description,
+        Tags: tags,
+      }
+      namedFields.forEach((f, i) => {
+        fieldsToCheck[`Field ${i + 1} name`] = f.name
+      })
+
+      const moderation = await moderateFields(fieldsToCheck)
+      if (moderation.flagged) {
+        setSaveError(describeFlaggedFields(moderation))
+        setIsSaving(false)
+        return
+      }
+
       // 1. Update the template row itself. Slug is intentionally left
       // unchanged so existing links/bookmarks to this template keep working.
       const { error: templateError } = await supabase

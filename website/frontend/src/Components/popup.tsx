@@ -43,7 +43,7 @@ export function PopUp() {
                     <p className="font-medium">Get the App here!</p>
                 </div>
                 <Button asChild>
-                    <a href="/public/favicon.svg" download>
+                    <a href="https://sacbloctwbvcnkadihty.supabase.co/storage/v1/object/public/Downloadables/app-release.apk" download>
                         <Download className="h-4 w-4" />
                         Download
                     </a>

@@ -7,6 +7,7 @@ import { Button } from "../Components/buttons"
 import { Input } from "../Components/input"
 import { Label } from "../Components/label"
 import { cn } from "../../lib/utils"
+import { moderateFields, describeFlaggedFields } from "../../lib/moderation"
 import { supabase } from "../../lib/supabase";
 
 type AuthMode = "login" | "signup"
@@ -23,6 +24,16 @@ export default function SignupPage() {
     if (password !== confirmPassword) {
       alert("Passwords do not match.");
       return;
+    }
+
+    const moderation = await moderateFields({
+      "Full name": name,
+      Username: username,
+    })
+
+    if (moderation.flagged) {
+      alert(describeFlaggedFields(moderation))
+      return
     }
 
     const { data, error } = await supabase.auth.signUp({
