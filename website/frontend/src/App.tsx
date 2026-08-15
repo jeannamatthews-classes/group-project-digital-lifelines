@@ -1,6 +1,7 @@
 // import { useState } from 'react'
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useLocation } from "react-router-dom"
+import { Analytics } from '@vercel/analytics/react'
 import { NavBar }  from './Components/navbar'
 import Landing from './pages/landing'
 import Explore from './pages/explore'
@@ -45,6 +46,7 @@ function App() {
       {!hideNavbar && <PopUp />}
       {!hideNavbar && <Footer /> }
       </div>
+      <Analytics />
     </>
   )
 }
