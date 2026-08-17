@@ -1,0 +1,152 @@
+import 'package:flutter/material.dart';
+
+import '../../theme/app_theme.dart';
+import 'party_game_welcome_screen.dart';
+
+class DataDiscoveryConsentScreen extends StatefulWidget {
+  final String friendName;
+
+  const DataDiscoveryConsentScreen({
+    super.key,
+    required this.friendName,
+  });
+
+  @override
+  State<DataDiscoveryConsentScreen> createState() =>
+      _DataDiscoveryConsentScreenState();
+}
+
+class _DataDiscoveryConsentScreenState
+    extends State<DataDiscoveryConsentScreen> {
+  final Map<String, bool> _categories = {
+    'Books': false,
+    'Songs': false,
+    'Travels': false,
+    'Location': false,
+  };
+
+  bool get _hasAtLeastOneSelected =>
+      _categories.values.any((selected) => selected);
+
+  void _submit() {
+    final chosen = _categories.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Consented to share: ${chosen.join(", ")}')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          'Data Discovery Mode',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "You've connected with ${widget.friendName}'s timelines!",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: AppColors.appBarText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Choose which data sources you consent to share',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const Text(
+              'Choose at least one',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: AppColors.appBarText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ..._categories.keys.map((category) {
+              return CheckboxListTile(
+                value: _categories[category],
+                onChanged: (value) {
+                  setState(() {
+                    _categories[category] = value ?? false;
+                  });
+                },
+                title: Text(
+                  category,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.appBarText,
+                  ),
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.primary,
+              );
+            }),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _hasAtLeastOneSelected ? _submit : null,
+                child: const Text('Submit'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PartyGameWelcomeScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.celebration_rounded),
+                label: const Text('Party Game'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

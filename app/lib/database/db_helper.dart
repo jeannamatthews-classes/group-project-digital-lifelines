@@ -7,6 +7,10 @@ import '../models/entry.dart';
 import '../models/field.dart';
 import '../models/timeline.dart';
 import '../models/value.dart';
+import 'firebase_helper.dart';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 
 class DBHelper {
   DBHelper._internal();
@@ -20,18 +24,22 @@ class DBHelper {
   }
 
   // Creates/opens the local SQLite database and applies migrations.
-  Future<Database> initDB() async {
+ Future<Database> initDB() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'digital_lifelines.db');
 
+    // Delete old database to force fresh start!
+    //await deleteDatabase(path);
+
     return openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: (db, version) async {
-        await db.execute('''
+    await db.execute('''
           CREATE TABLE timelines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT
+            name TEXT,
+            firebase_doc_id TEXT
           )
         ''');
 
@@ -68,20 +76,72 @@ class DBHelper {
             'ALTER TABLE entries ADD COLUMN is_favorite INTEGER DEFAULT 0',
           );
         }
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE timelines ADD COLUMN firebase_doc_id TEXT',
+          );
+        }
+        if (oldVersion < 4) {
+          try {
+            await db.execute(
+              'ALTER TABLE timelines ADD COLUMN firebase_doc_id TEXT',
+            );
+          } catch (e) {
+            print('Column may already exist: $e');
+          }
+        }
       },
     );
   }
 
-  Future<int> insertTimeline(Timeline timeline) async {
+/*Future<int> insertTimeline(Timeline timeline) async {
     final db = await database;
-    return db.insert('timelines', timeline.toMap());
+    final localId = await db.insert('timelines', timeline.toMap());
+    
+    // Save to Firebase and get doc ID!
+    final firebaseDocId = await FirebaseHelper.instance
+        .saveTimeline(timeline.name, localId);
+    
+    // Store firebase doc ID locally!
+    await db.update(
+      'timelines',
+      {'firebase_doc_id': firebaseDocId},
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+    
+    return localId;
+  }
+  */
+  Future<int> insertTimeline(Timeline timeline) async {
+  final db = await database;
+  return await db.insert('timelines', timeline.toMap());
+}
+
+ Future<String> getFirebaseDocId(int timelineId) async {
+    final db = await database;
+    final rows = await db.query(
+      'timelines',
+      where: 'id = ?',
+      whereArgs: [timelineId],
+    );
+    if (rows.isEmpty) return timelineId.toString();
+    return (rows.first['firebase_doc_id'] as String?) ?? timelineId.toString();
   }
 
-  Future<int> updateTimelineName({
+Future<int> updateTimelineName({
     required int timelineId,
     required String name,
   }) async {
     final db = await database;
+    
+    // Get Firebase doc ID first!
+    final firebaseDocId = await getFirebaseDocId(timelineId);
+    
+    // Update Firebase!
+    await FirebaseHelper.instance
+        .updateTimelineName(firebaseDocId, name);
+    
     return db.update(
       'timelines',
       {'name': name},
@@ -89,11 +149,28 @@ class DBHelper {
       whereArgs: [timelineId],
     );
   }
+/*
+ Future<int> insertField(TimelineField field) async {
+    final db = await database;
+    final fieldId = await db.insert('fields', field.toMap());
+    
+    // Get Firebase doc ID!
+    final firebaseDocId = await getFirebaseDocId(field.timelineId);
+    
+    await FirebaseHelper.instance.saveField(
+      firebaseDocId,
+      field.name,
+      field.type,
+    );
+    
+    return fieldId;
+  }
+  */
 
   Future<int> insertField(TimelineField field) async {
-    final db = await database;
-    return db.insert('fields', field.toMap());
-  }
+  final db = await database;
+  return await db.insert('fields', field.toMap());
+}
 
   Future<List<Timeline>> getTimelines() async {
     final db = await database;
@@ -111,19 +188,71 @@ class DBHelper {
     );
     return maps.map(TimelineField.fromMap).toList();
   }
+/*
+Future<int> insertEntry(Entry entry) async {
+    final db = await database;
+    final entryId = await db.insert('entries', entry.toMap());
+    
+    // Get Firebase doc ID!
+    final firebaseDocId = await getFirebaseDocId(entry.timelineId);
+    
+   await FirebaseHelper.instance.saveEntry(
+      firebaseDocId,
+      entryId,
+      {}, // Empty! Values saved separately via insertValue!
+    );
+    
+    return entryId;
+  }
+  */
 
   Future<int> insertEntry(Entry entry) async {
-    final db = await database;
-    return db.insert('entries', entry.toMap());
-  }
+  final db = await database;
+  return await db.insert('entries', entry.toMap());
+}
 
-  Future<int> insertValue(EntryValue value) async {
+/*
+ Future<int> insertValue(EntryValue value) async {
     final db = await database;
-    return db.rawInsert(
+    final id = await db.rawInsert(
       'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
       [value.entryId, value.fieldId, value.value],
     );
+    
+    // Get field name for Firebase
+    final fieldRows = await db.query(
+      'fields',
+      where: 'id = ?',
+      whereArgs: [value.fieldId],
+    );
+    
+    if (fieldRows.isNotEmpty) {
+      final fieldName = fieldRows.first['name'] as String;
+      final timelineId = fieldRows.first['timeline_id'] as int;
+      
+   // Get Firebase doc ID!
+      final firebaseDocId = await getFirebaseDocId(timelineId);
+      
+      // Save to Firebase!
+      await FirebaseHelper.instance.saveValue(
+        firebaseDocId,
+        value.entryId,
+        fieldName,
+        value.value,
+      );
+    }
+    
+    return id;
   }
+  */
+
+  Future<int> insertValue(EntryValue value) async {
+  final db = await database;
+  return await db.rawInsert(
+    'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+    [value.entryId, value.fieldId, value.value],
+  );
+}
 
   Future<List<Entry>> getEntries(int timelineId) async {
     final db = await database;
@@ -205,8 +334,143 @@ class DBHelper {
     await db.delete('entries', where: 'id = ?', whereArgs: [entryId]);
   }
 
-  Future<void> deleteTimeline(int timelineId) async {
+  // Clear all local data on logout
+Future<void> clearAllData() async {
     final db = await database;
+    await db.rawDelete('DELETE FROM "values"');
+    await db.rawDelete('DELETE FROM entries');
+    await db.rawDelete('DELETE FROM fields');
+    await db.rawDelete('DELETE FROM timelines');
+    print('Local data cleared!');
+  }
+
+// Sync data from Firebase to local SQLite
+Future<void> syncFromFirebase() async {
+    try {
+      final timelines = await FirebaseHelper.instance.getUserTimelines();
+      
+      final db = await database;
+      
+      for (final timeline in timelines) {
+        final name = timeline['name'] as String? ?? '';
+        if (name.isEmpty) continue;
+        
+       // Insert timeline with firebase_doc_id!
+        final firebaseDocId = timeline['firebase_doc_id'] as String? ?? '';
+        final timelineId = await db.insert(
+          'timelines',
+          {
+            'name': name,
+            'firebase_doc_id': firebaseDocId,
+          },
+        );
+        
+        // Insert fields
+        final fields = timeline['fields'] as List? ?? [];
+        for (final field in fields) {
+          await db.insert('fields', {
+            'timeline_id': timelineId,
+            'name': field['name'] ?? '',
+            'type': field['type'] ?? 'text',
+          });
+        }
+        
+      // Insert entries with values
+        final entries = timeline['entries'] as List? ?? [];
+        for (final entry in entries) {
+          final entryId = await db.insert('entries', {
+            'timeline_id': timelineId,
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+            'is_favorite': 0,
+          });
+
+          // Insert values for this entry
+          final values = entry['values'] as Map? ?? {};
+          for (final pair in values.entries) {
+            final fieldName = pair.key.toString();
+            final fieldValue = pair.value.toString();
+
+            // Find field_id by name
+            final fieldRows = await db.query(
+              'fields',
+              where: 'timeline_id = ? AND name = ?',
+              whereArgs: [timelineId, fieldName],
+            );
+
+            if (fieldRows.isNotEmpty) {
+              final fieldId = fieldRows.first['id'] as int;
+              await db.rawInsert(
+                'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+                [entryId, fieldId, fieldValue],
+              );
+            }
+          }
+        }
+      }
+      print('Synced from Firebase successfully!');
+    } catch (e) {
+      print('Sync error: $e');
+    }
+  }
+
+// Call this only when user explicitly wants to backup
+Future<void> backupToFirebase() async {
+  final timelines = await getTimelines();
+  
+  for (final timeline in timelines) {
+    final timelineId = timeline.id;
+    if (timelineId == null) continue;
+    
+    final firebaseDocId = await FirebaseHelper.instance
+        .saveTimeline(timeline.name, timelineId);
+    
+    final fields = await getFields(timelineId);
+    for (final field in fields) {
+      await FirebaseHelper.instance
+          .saveField(firebaseDocId, field.name, field.type);
+    }
+    
+    final entries = await getEntries(timelineId);
+    for (final entry in entries) {
+      final entryId = entry.id;
+      if (entryId == null) continue;
+      
+    /*  await FirebaseHelper.instance
+          .saveEntry(firebaseDocId, entryId, entry.createdAt, entry.isFavorite);
+    */
+        await FirebaseHelper.instance.saveEntry(
+      firebaseDocId,
+      entryId,
+      {
+        'created_at': entry.createdAt.toString(),
+        'is_favorite': entry.isFavorite.toString(),
+      },
+    );  
+      final values = await getValues(entryId);
+      for (final value in values) {
+        final fieldRows = await (await database).query(
+          'fields', where: 'id = ?', whereArgs: [value.fieldId]);
+        if (fieldRows.isNotEmpty) {
+          final fieldName = fieldRows.first['name'] as String;
+        /*  await FirebaseHelper.instance
+              .saveValue(timelineId, entryId, fieldName, value.value);
+        */
+        await FirebaseHelper.instance
+    .saveValue(timelineId.toString(), entryId, fieldName, value.value);
+        }
+      }
+    }
+  }
+}
+
+
+
+Future<void> deleteTimeline(int timelineId) async {
+    final db = await database;
+    
+    // Get Firebase doc ID BEFORE deleting locally!
+    final firebaseDocId = await getFirebaseDocId(timelineId);
+    
     final entries = await getEntries(timelineId);
 
     for (final entry in entries) {
@@ -229,6 +493,9 @@ class DBHelper {
       whereArgs: [timelineId],
     );
     await db.delete('timelines', where: 'id = ?', whereArgs: [timelineId]);
+
+   // Also delete from Firebase!
+    await FirebaseHelper.instance.deleteTimeline(firebaseDocId);
   }
 
   Future<Map<String, int>> getTimelineStats(int timelineId) async {
@@ -614,6 +881,48 @@ class DBHelper {
         .join('|');
   }
 
+  Future<void> backupSelectedToFirebase(List<Timeline> timelines) async {
+  for (final timeline in timelines) {
+    final timelineId = timeline.id;
+    if (timelineId == null) continue;
+
+    final firebaseDocId = await FirebaseHelper.instance
+        .saveTimeline(timeline.name, timelineId);
+
+    final fields = await getFields(timelineId);
+    for (final field in fields) {
+      await FirebaseHelper.instance
+          .saveField(firebaseDocId, field.name, field.type);
+    }
+
+    final entries = await getEntries(timelineId);
+    for (final entry in entries) {
+      final entryId = entry.id;
+      if (entryId == null) continue;
+
+      await FirebaseHelper.instance.saveEntry(
+        firebaseDocId,
+        entryId,
+        {
+          'created_at': entry.createdAt.toString(),
+          'is_favorite': entry.isFavorite.toString(),
+        },
+      );
+
+      final values = await getValues(entryId);
+      for (final value in values) {
+        final fieldRows = await (await database).query(
+          'fields', where: 'id = ?', whereArgs: [value.fieldId]);
+        if (fieldRows.isNotEmpty) {
+          final fieldName = fieldRows.first['name'] as String;
+          await FirebaseHelper.instance
+              .saveValue(timelineId.toString(), entryId, fieldName, value.value);
+        }
+      }
+    }
+  }
+}
+
   // Reads existing entries and builds indexes for duplicate detection.
   Future<_EntryDuplicateIndex> _buildEntryDuplicateIndex({
     required Transaction txn,
@@ -672,6 +981,265 @@ class DBHelper {
       entryIdBySignature: bySignature,
     );
   }
+
+
+Future<int> importFromPhotos() async {
+  // Request location permission so iOS geocoding service can be used
+  LocationPermission locationPermission = await Geolocator.checkPermission();
+  if (locationPermission == LocationPermission.denied) {
+    locationPermission = await Geolocator.requestPermission();
+  }
+  print('Location permission status: $locationPermission');
+
+  final Map<String, Map<String, String>> geocodeCache = {};
+  final permission = await PhotoManager.requestPermissionExtend(
+  requestOption: const PermissionRequestOption(
+    androidPermission: AndroidPermission(
+      type: RequestType.image,
+      mediaLocation: true,
+    ),
+  ),
+);
+  if (!permission.isAuth) {
+    print('Photo permission denied!');
+    return 0;
+  }
+
+  final db = await database;
+
+  // Check if My Places already exists
+final existing = await db.query(
+  'timelines',
+  where: 'name = ?',
+  whereArgs: ['My Places'],
+);
+if (existing.isNotEmpty) {
+  print('My Places already exists!');
+  return 0;
+}
+
+  final timelineId = await db.insert('timelines', {'name': 'My Places'});
+
+  final dateFieldId = await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'date', 'type': 'text',
+  });
+  final countryFieldId = await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'country', 'type': 'text',
+  });
+  final cityFieldId = await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'city', 'type': 'text',
+  });
+
+  final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
+  if (albums.isEmpty) return 0;
+
+  //final photos = await albums.first.getAssetListRange(start: 0, end: 500);
+
+
+  // Search ALL albums
+final List<AssetEntity> photos = [];
+for (final album in albums) {
+  final assets = await album.getAssetListRange(start: 0, end: 1000);
+  for (final asset in assets) {
+    if (!photos.any((p) => p.id == asset.id)) {
+      photos.add(asset);
+    }
+  }
+}
+print('Total photos found: ${photos.length}');
+
+
+  print('Photos found: ${photos.length}');
+  int count = 0;
+
+  for (final photo in photos) {
+    try {
+      // Get actual file to read EXIF data
+      final file = await photo.loadFile();
+      if (file == null) continue;
+
+      final latLng = await photo.latlngAsync();
+      double lat = latLng?.latitude ?? 0.0;
+      double lng = latLng?.longitude ?? 0.0;
+
+      // If latlngAsync fails, try originFile
+      if (lat == 0.0 && lng == 0.0) {
+        final originFile = await photo.originFile;
+        if (originFile == null) continue;
+        final latLng2 = await photo.latlngAsync();
+        lat = latLng2?.latitude ?? 0.0;
+        lng = latLng2?.longitude ?? 0.0;
+      }
+
+      print('Photo GPS: $lat, $lng');
+      if (lat == 0.0 && lng == 0.0) continue;
+      print('Found GPS: $lat, $lng');
+
+  String country = 'Unknown';
+      String city = 'Unknown';
+      // Round coordinates to ~1km precision to group nearby photos together
+      final cacheKey = '${lat.toStringAsFixed(2)},${lng.toStringAsFixed(2)}';
+
+      if (geocodeCache.containsKey(cacheKey)) {
+        country = geocodeCache[cacheKey]!['country']!;
+        city = geocodeCache[cacheKey]!['city']!;
+      } else {
+        try {
+          final placemarks = await placemarkFromCoordinates(lat, lng);
+          if (placemarks.isNotEmpty) {
+            final place = placemarks.first;
+            country = place.country ?? 'Unknown';
+            city = place.locality ?? place.administrativeArea ?? 'Unknown';
+          }
+          geocodeCache[cacheKey] = {'country': country, 'city': city};
+          // Small delay only for actual network calls
+          await Future.delayed(const Duration(milliseconds: 500));
+        } catch (e) {
+          print('Geocoding failed for $lat, $lng: $e');
+          geocodeCache[cacheKey] = {'country': country, 'city': city};
+        }
+      }
+      final date = photo.createDateTime.toIso8601String().split('T').first;
+
+      final entryId = await db.insert('entries', {
+        'timeline_id': timelineId,
+        'created_at': photo.createDateTime.millisecondsSinceEpoch,
+        'is_favorite': 0,
+      });
+
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, dateFieldId, date],
+      );
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, countryFieldId, country],
+      );
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, cityFieldId, city],
+      );
+      count++;
+    } catch (e) {
+      print('Error processing photo: $e');
+      continue;
+    }
+  }
+
+  print('Imported $count places from photos!');
+  return count;
+}
+
+/// Adds latitude/longitude to existing "My Places" entries that were
+/// imported before coordinates were being saved. Matches each existing
+/// entry back to its original photo using the exact creation timestamp,
+/// which is stored for both.
+Future<int> backfillPhotoCoordinates() async {
+  final db = await database;
+
+  final existing = await db.query(
+    'timelines',
+    where: 'name = ?',
+    whereArgs: ['My Places'],
+  );
+  if (existing.isEmpty) {
+    print('My Places does not exist yet - nothing to backfill.');
+    return 0;
+  }
+  final timelineId = existing.first['id'] as int;
+
+  final existingFields = await db.query(
+    'fields',
+    where: 'timeline_id = ?',
+    whereArgs: [timelineId],
+  );
+  int? latFieldId;
+  int? lngFieldId;
+  for (final f in existingFields) {
+    if (f['name'] == 'latitude') latFieldId = f['id'] as int;
+    if (f['name'] == 'longitude') lngFieldId = f['id'] as int;
+  }
+  latFieldId ??= await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'latitude', 'type': 'text',
+  });
+  lngFieldId ??= await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'longitude', 'type': 'text',
+  });
+
+  final existingEntries = await db.query(
+    'entries',
+    where: 'timeline_id = ?',
+    whereArgs: [timelineId],
+  );
+  final entryIdByTimestamp = <int, int>{};
+  for (final e in existingEntries) {
+    entryIdByTimestamp[e['created_at'] as int] = e['id'] as int;
+  }
+
+  final existingCoordValues = await db.query(
+    'values',
+    where: 'field_id = ?',
+    whereArgs: [latFieldId],
+  );
+  final entriesWithCoords =
+      existingCoordValues.map((v) => v['entry_id'] as int).toSet();
+
+  final permission = await PhotoManager.requestPermissionExtend(
+    requestOption: const PermissionRequestOption(
+      androidPermission: AndroidPermission(
+        type: RequestType.image,
+        mediaLocation: true,
+      ),
+    ),
+  );
+  if (!permission.isAuth) {
+    print('Photo permission denied during backfill!');
+    return 0;
+  }
+
+  final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
+  if (albums.isEmpty) return 0;
+  final List<AssetEntity> photos = [];
+  for (final album in albums) {
+    final assets = await album.getAssetListRange(start: 0, end: 1000);
+    for (final asset in assets) {
+      if (!photos.any((p) => p.id == asset.id)) {
+        photos.add(asset);
+      }
+    }
+  }
+
+  int backfilled = 0;
+  for (final photo in photos) {
+    try {
+      final timestamp = photo.createDateTime.millisecondsSinceEpoch;
+      final entryId = entryIdByTimestamp[timestamp];
+      if (entryId == null) continue;
+      if (entriesWithCoords.contains(entryId)) continue;
+
+      final latLng = await photo.latlngAsync();
+      double lat = latLng?.latitude ?? 0.0;
+      double lng = latLng?.longitude ?? 0.0;
+      if (lat == 0.0 && lng == 0.0) continue;
+
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, latFieldId, lat.toString()],
+      );
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, lngFieldId, lng.toString()],
+      );
+      backfilled++;
+    } catch (e) {
+      print('Error backfilling photo coordinates: $e');
+      continue;
+    }
+  }
+  print('Backfilled coordinates for $backfilled entries!');
+  return backfilled;
+}
+  
 }
 
 enum ImportMode { replaceAll, mergeSkipDuplicates, mergeUpdateDuplicates }
@@ -692,7 +1260,12 @@ class ImportResult {
     this.skippedEntries = 0,
     this.updatedEntries = 0,
   });
+
+
+  
 }
+
+
 
 class _EntryDuplicateIndex {
   final Map<String, int> entryIdByName;

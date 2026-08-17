@@ -1,0 +1,261 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:ble_peripheral/ble_peripheral.dart';
+
+import '../../theme/app_theme.dart';
+
+// Shared UUIDs - must match party_game_connect_screen.dart exactly.
+const String kPartyServiceUuid = '0000DDDD-0000-1000-8000-00805F9B34FB';
+const String kQuestionCharacteristicUuid = '0000DDDE-0000-1000-8000-00805F9B34FB';
+const String kAnswerCharacteristicUuid = '0000DDDF-0000-1000-8000-00805F9B34FB';
+
+class PartyGameHostScreen extends StatefulWidget {
+  final int questionId;
+  final String questionText;
+
+  const PartyGameHostScreen({
+    super.key,
+    required this.questionId,
+    required this.questionText,
+  });
+
+  @override
+  State<PartyGameHostScreen> createState() => _PartyGameHostScreenState();
+}
+
+class _PartyGameHostScreenState extends State<PartyGameHostScreen> {
+  bool _isAdvertising = false;
+  String? _errorMessage;
+  String? _receivedAnswer;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupCallbacks();
+  }
+
+  @override
+  void dispose() {
+    BlePeripheral.stopAdvertising();
+    super.dispose();
+  }
+
+  void _setupCallbacks() {
+    BlePeripheral.setAdvertingStartedCallback((String? error) {
+      if (!mounted) return;
+      if (error != null) {
+        setState(() {
+          _errorMessage = 'Failed to start advertising: $error';
+          _isAdvertising = false;
+        });
+      } else {
+        setState(() {
+          _isAdvertising = true;
+          _errorMessage = null;
+        });
+      }
+    });
+
+    // Called when the joiner writes their answer to the answer characteristic.
+    BlePeripheral.setWriteRequestCallback(
+      (String characteristicId, int offset, Uint8List? value) {
+        if (value == null) return;
+        final answerText = utf8.decode(value, allowMalformed: true);
+        if (!mounted) return;
+        setState(() {
+          _receivedAnswer = answerText;
+        });
+      },
+    );
+  }
+
+  Future<void> _startHosting() async {
+    setState(() {
+      _errorMessage = null;
+      _receivedAnswer = null;
+    });
+
+    try {
+      await BlePeripheral.initialize();
+
+      // Question characteristic holds the question id as a single byte,
+      // readable by the joiner once connected.
+      final questionValue = Uint8List.fromList([widget.questionId & 0xFF]);
+
+      await BlePeripheral.addService(
+        BleService(
+          uuid: kPartyServiceUuid,
+          primary: true,
+          characteristics: [
+            BleCharacteristic(
+              uuid: kQuestionCharacteristicUuid,
+              properties: [CharacteristicProperties.read.index],
+              value: questionValue,
+              permissions: [AttributePermissions.readable.index],
+            ),
+            BleCharacteristic(
+              uuid: kAnswerCharacteristicUuid,
+              properties: [CharacteristicProperties.write.index],
+              value: null,
+              permissions: [AttributePermissions.writeable.index],
+            ),
+          ],
+        ),
+      );
+
+      await BlePeripheral.startAdvertising(
+        services: [kPartyServiceUuid],
+        localName: 'DL_Host',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to start advertising: $e';
+      });
+    }
+  }
+
+  Future<void> _stopHosting() async {
+    await BlePeripheral.stopAdvertising();
+    if (!mounted) return;
+    setState(() {
+      _isAdvertising = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          'Hosting Question',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.help_outline_rounded,
+                    size: 36,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.questionText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.appBarText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isAdvertising
+                    ? AppColors.accent.withValues(alpha: 0.15)
+                    : Colors.grey.shade100,
+              ),
+              child: Icon(
+                _isAdvertising
+                    ? Icons.bluetooth_audio_rounded
+                    : Icons.bluetooth_rounded,
+                size: 56,
+                color: _isAdvertising ? AppColors.accent : AppColors.mutedText,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isAdvertising
+                  ? 'Broadcasting... ask your friend to scan!'
+                  : 'Tap below to start broadcasting this question',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.mutedText),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ],
+            if (_receivedAnswer != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Friend\'s answer:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.mutedText,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _receivedAnswer!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: AppColors.appBarText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isAdvertising ? _stopHosting : _startHosting,
+                icon: Icon(
+                  _isAdvertising
+                      ? Icons.stop_circle_rounded
+                      : Icons.broadcast_on_personal_rounded,
+                ),
+                label: Text(
+                  _isAdvertising ? 'Stop Broadcasting' : 'Start Broadcasting',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

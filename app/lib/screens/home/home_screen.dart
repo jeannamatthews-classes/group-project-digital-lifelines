@@ -5,6 +5,8 @@ import '../../models/timeline.dart';
 import '../../theme/app_theme.dart';
 import 'create_timeline_screen.dart';
 import '../timeline/timeline_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'party_game_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -59,7 +61,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Opens one timeline and refreshes on return in case entries changed.
   Future<void> _openTimeline(Timeline timeline) async {
     await Navigator.push(
       context,
@@ -68,19 +69,22 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadTimelines();
   }
 
-  // Renames a timeline in place.
+  // Opens one timeline and refreshes on return in case entries changed.
   Future<void> _editTimeline(Timeline timeline) async {
     final id = timeline.id;
     if (id == null) return;
 
     final controller = TextEditingController(text: timeline.name);
+
     final newName = await showDialog<String>(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Edit Timeline'),
           content: TextField(
             controller: controller,
+            autofocus: true,
             decoration: const InputDecoration(
               labelText: 'Timeline Name',
               border: OutlineInputBorder(),
@@ -88,19 +92,28 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(dialogContext, null);
+              },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () {
+                final name = controller.text.trim();
+                Navigator.pop(dialogContext, name);
+              },
               child: const Text('Save'),
             ),
           ],
         );
       },
     );
+
+    // Wait for dialog animation to fully complete
+    await Future.delayed(const Duration(milliseconds: 300));
     controller.dispose();
 
+    if (!mounted) return;
     if (newName == null || newName.isEmpty) return;
 
     await _dbHelper.updateTimelineName(timelineId: id, name: newName);
@@ -160,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          // Refresh button (existing)
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
@@ -205,256 +219,331 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _timelines.isEmpty
-          ? _EmptyHomeState(onCreate: _openCreateTimeline)
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 94),
-              itemCount: _timelines.length,
-              itemBuilder: (context, index) {
-                final timeline = _timelines[index];
-                final stats =
-                    _statsByTimelineId[timeline.id] ??
-                    const _TimelineStats(totalEntries: 0, favoriteEntries: 0);
+          : Column(
+              children: [
+                Expanded(
+                  child: _timelines.isEmpty
+                      ? _EmptyHomeState(onCreate: _openCreateTimeline)
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 94),
+                          itemCount: _timelines.length,
+                          itemBuilder: (context, index) {
+                            final timeline = _timelines[index];
+                            final stats =
+                                _statsByTimelineId[timeline.id] ??
+                                const _TimelineStats(
+                                  totalEntries: 0,
+                                  favoriteEntries: 0,
+                                );
 
-                final isSpotify = timeline.name.toLowerCase().contains('spotify');
-                final isMusic = timeline.name.toLowerCase().contains('music');
-                final isGoodreads =
-                  timeline.name.toLowerCase().contains('goodreads');
+                            final isSpotify = timeline.name
+                                .toLowerCase()
+                                .contains('spotify');
+                            final isMusic = timeline.name
+                                .toLowerCase()
+                                .contains('music');
+                            final isGoodreads = timeline.name
+                                .toLowerCase()
+                                .contains('goodreads');
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.grey.shade100,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(24),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () => _openTimeline(timeline),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 20,
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Container(
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: isSpotify
-                                        ? [
-                                            const Color(0xFF1DB954),
-                                            const Color(0xFF191414),
-                                          ]
-                                        : (isGoodreads
-                                            ? [
-                                                const Color(0xFF8D6E63),
-                                                const Color(0xFF4E342E),
-                                              ]
-                                            : (isMusic
-                                            ? [
-                                                const Color(0xFFE91E63),
-                                                const Color(0xFF9C27B0),
-                                              ]
-                                            : [
-                                                AppColors.primary,
-                                                AppColors.primary
-                                                    .withValues(alpha: 0.7),
-                                              ])),
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(18),
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (isSpotify
-                                              ? const Color(0xFF1DB954)
-                                              : (isGoodreads
-                                                  ? const Color(0xFF8D6E63)
-                                                  : (isMusic
-                                                  ? const Color(0xFFE91E63)
-                                                  : AppColors.primary)))
-                                          .withValues(
-                                        alpha: 0.3,
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.05,
                                       ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: Colors.grey.shade100,
+                                    width: 1.5,
+                                  ),
                                 ),
-                                child: (isSpotify || isGoodreads)
-                                    ? Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Image.asset(
-                                          isSpotify
-                                              ? 'assets/spotify.png'
-                                              : 'assets/goodreads.png',
-                                          fit: BoxFit.contain,
-                                        ),
-                                      )
-                                    : Icon(
-                                        isMusic
-                                            ? Icons.music_note_rounded
-                                            : Icons.menu_book_rounded,
-                                        color: Colors.white,
-                                        size: 26,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(24),
+                                    onTap: () => _openTimeline(timeline),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 20,
                                       ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      timeline.name,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.appBarText,
-                                        letterSpacing: -0.3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF1F5F9),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${stats.totalEntries} entries',
-                                            style: const TextStyle(
-                                              color: AppColors.mutedText,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        if (stats.favoriteEntries > 0)
+                                      child: Row(
+                                        children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
+                                            width: 56,
+                                            height: 56,
                                             decoration: BoxDecoration(
-                                              color: AppColors.accent
-                                                  .withValues(alpha: 0.1),
+                                              gradient: LinearGradient(
+                                                colors: isSpotify
+                                                    ? [
+                                                        const Color(
+                                                          0xFF1DB954,
+                                                        ),
+                                                        const Color(
+                                                          0xFF191414,
+                                                        ),
+                                                      ]
+                                                    : (isGoodreads
+                                                          ? [
+                                                              const Color(
+                                                                0xFF8D6E63,
+                                                              ),
+                                                              const Color(
+                                                                0xFF4E342E,
+                                                              ),
+                                                            ]
+                                                          : (isMusic
+                                                                ? [
+                                                                    const Color(
+                                                                      0xFFE91E63,
+                                                                    ),
+                                                                    const Color(
+                                                                      0xFF9C27B0,
+                                                                    ),
+                                                                  ]
+                                                                : [
+                                                                    AppColors
+                                                                        .primary,
+                                                                    AppColors
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.7,
+                                                                        ),
+                                                                  ])),
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
                                               borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.star_rounded,
-                                                  size: 12,
-                                                  color: AppColors.accent,
+                                                  BorderRadius.circular(18),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color:
+                                                      (isSpotify
+                                                              ? const Color(
+                                                                  0xFF1DB954,
+                                                                )
+                                                              : (isGoodreads
+                                                                    ? const Color(
+                                                                        0xFF8D6E63,
+                                                                      )
+                                                                    : (isMusic
+                                                                          ? const Color(
+                                                                              0xFFE91E63,
+                                                                            )
+                                                                          : AppColors
+                                                                                .primary)))
+                                                          .withValues(
+                                                            alpha: 0.3,
+                                                          ),
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 4),
                                                 ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '${stats.favoriteEntries}',
-                                                  style: const TextStyle(
-                                                    color: AppColors.accent,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
+                                              ],
+                                            ),
+                                            child: (isSpotify || isGoodreads)
+                                                ? Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12.0,
+                                                        ),
+                                                    child: Image.asset(
+                                                      isSpotify
+                                                          ? 'assets/spotify.png'
+                                                          : 'assets/goodreads.png',
+                                                      fit: BoxFit.contain,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    isMusic
+                                                        ? Icons
+                                                              .music_note_rounded
+                                                        : Icons
+                                                              .menu_book_rounded,
+                                                    color: Colors.white,
+                                                    size: 26,
                                                   ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  timeline.name,
+                                                  style: const TextStyle(
+                                                    fontSize: 18,
+                                                    fontWeight:
+                                                        FontWeight.w800,
+                                                    color:
+                                                        AppColors.appBarText,
+                                                    letterSpacing: -0.3,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xFFF1F5F9,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                      child: Text(
+                                                        '${stats.totalEntries} entries',
+                                                        style: const TextStyle(
+                                                          color: AppColors
+                                                              .mutedText,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    if (stats.favoriteEntries >
+                                                        0)
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors
+                                                              .accent
+                                                              .withValues(
+                                                                alpha: 0.1,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        child: Row(
+                                                          children: [
+                                                            const Icon(
+                                                              Icons
+                                                                  .star_rounded,
+                                                              size: 12,
+                                                              color: AppColors
+                                                                  .accent,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 4,
+                                                            ),
+                                                            Text(
+                                                              '${stats.favoriteEntries}',
+                                                              style: const TextStyle(
+                                                                color: AppColors
+                                                                    .accent,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ],
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                icon: const Icon(
-                                  Icons.more_vert_rounded,
-                                  color: AppColors.mutedText,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                onSelected: (value) {
-                                  if (value == 'edit') {
-                                    _editTimeline(timeline);
-                                  } else if (value == 'delete') {
-                                    _deleteTimeline(timeline);
-                                  }
-                                },
-                                itemBuilder: (context) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.edit_rounded,
-                                          size: 18,
-                                          color: AppColors.mutedText,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Edit',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
+                                          PopupMenuButton<String>(
+                                            icon: const Icon(
+                                              Icons.more_vert_rounded,
+                                              color: AppColors.mutedText,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            onSelected: (value) {
+                                              if (value == 'edit') {
+                                                _editTimeline(timeline);
+                                              } else if (value == 'delete') {
+                                                _deleteTimeline(timeline);
+                                              }
+                                            },
+                                            itemBuilder: (context) => const [
+                                              PopupMenuItem(
+                                                value: 'edit',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.edit_rounded,
+                                                      size: 18,
+                                                      color: AppColors
+                                                          .mutedText,
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Text(
+                                                      'Edit',
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'delete',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .delete_outline_rounded,
+                                                      size: 18,
+                                                      color: Colors.red,
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Text(
+                                                      'Delete',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_outline_rounded,
-                                          size: 18,
-                                          color: Colors.red,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Delete',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
-                      ),
-                    ),
-                  ),
-                );
-              },
+                ),
+              ],
             ),
     );
   }

@@ -1,0 +1,228 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+
+import '../../theme/app_theme.dart';
+import '../../data/party_questions.dart';
+import 'party_game_host_screen.dart' show kPartyServiceUuid, kAnswerCharacteristicUuid;
+
+class PartyGameAnswerScreen extends StatefulWidget {
+  final FlutterReactiveBle ble;
+  final String deviceId;
+  final PartyQuestion question;
+
+  const PartyGameAnswerScreen({
+    super.key,
+    required this.ble,
+    required this.deviceId,
+    required this.question,
+  });
+
+  @override
+  State<PartyGameAnswerScreen> createState() => _PartyGameAnswerScreenState();
+}
+
+class _PartyGameAnswerScreenState extends State<PartyGameAnswerScreen> {
+  static final Uuid _serviceUuid = Uuid.parse(kPartyServiceUuid.toLowerCase());
+  static final Uuid _answerCharUuid =
+      Uuid.parse(kAnswerCharacteristicUuid.toLowerCase());
+
+  final TextEditingController _answerController = TextEditingController();
+  bool _isSending = false;
+  bool _sent = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _answerController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendAnswer() async {
+    final answerText = _answerController.text.trim();
+    if (answerText.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please type an answer first.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final characteristic = QualifiedCharacteristic(
+        serviceId: _serviceUuid,
+        characteristicId: _answerCharUuid,
+        deviceId: widget.deviceId,
+      );
+      await widget.ble.writeCharacteristicWithResponse(
+        characteristic,
+        value: utf8.encode(answerText),
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+        _sent = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+        _errorMessage = 'Failed to send answer: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          'Answer the Question',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.help_outline_rounded,
+                    size: 36,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.question.question,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.appBarText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 16,
+                    color: AppColors.mutedText,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.question.hint,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.mutedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (!_sent) ...[
+              TextField(
+                controller: _answerController,
+                decoration: const InputDecoration(
+                  labelText: 'Your answer',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                enabled: !_isSending,
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _isSending ? null : _sendAnswer,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded),
+                label: Text(_isSending ? 'Sending...' : 'Send Answer'),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 40,
+                      color: AppColors.accent,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Answer sent!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: AppColors.appBarText,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _answerController.text.trim(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.mutedText),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                child: const Text('Done'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

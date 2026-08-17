@@ -101,6 +101,18 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
             imageAsset: 'assets/goodreads.png',
             text: 'Import Goodreads JSON',
           ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _importFromPhotos,
+            icon: Icons.photo_library_outlined,
+            text: 'Import Places from Photos',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _backupToFirebase,
+            icon: Icons.cloud_upload_outlined,
+            text: 'Backup to Firebase',
+          ),
           if (_lastExportPath != null) ...[
             const SizedBox(height: 14),
             Container(
@@ -130,5 +142,93 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
         ],
       ),
     );
+  }
+
+  Future<void> _importFromPhotos() async {
+    setState(() => _isBusy = true);
+    try {
+      final count = await _dbHelper.importFromPhotos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Imported $count places from photos!')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _backupToFirebase() async {
+    final timelines = await _dbHelper.getTimelines();
+    if (timelines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No timelines to back up!')),
+      );
+      return;
+    }
+
+    final selected = List<bool>.filled(timelines.length, true);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: const Text('⚠️ Privacy Notice'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Your selected timelines will be sent to Firebase (Google servers). '
+                'Choose which ones to back up:',
+              ),
+              const SizedBox(height: 12),
+              ...List.generate(timelines.length, (i) => CheckboxListTile(
+                title: Text(timelines[i].name),
+                value: selected[i],
+                onChanged: (val) => setStateDialog(() => selected[i] = val!),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              )),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes, back up'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final selectedTimelines = [
+      for (int i = 0; i < timelines.length; i++)
+        if (selected[i]) timelines[i],
+    ];
+
+    if (selectedTimelines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No timelines selected!')),
+      );
+      return;
+    }
+
+    setState(() => _isBusy = true);
+    try {
+      await _dbHelper.backupSelectedToFirebase(selectedTimelines);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Backed up ${selectedTimelines.length} timeline(s)!')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 }

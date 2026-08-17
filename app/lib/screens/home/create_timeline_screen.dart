@@ -15,6 +15,7 @@ class _CreateTimelineScreenState extends State<CreateTimelineScreen> {
   final DBHelper _dbHelper = DBHelper.instance;
   final TextEditingController _timelineNameController = TextEditingController();
   final List<_FieldDraft> _fieldDrafts = [];
+  final ScrollController _scrollController = ScrollController();
   bool _isSaving = false;
 
   @override
@@ -98,8 +99,10 @@ class _CreateTimelineScreenState extends State<CreateTimelineScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Create Timeline')),
-      body: ListView(
+     body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
           const Text(
             'What would you like to name your lifeline?',

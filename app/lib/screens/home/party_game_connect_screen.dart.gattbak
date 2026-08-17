@@ -1,0 +1,277 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+
+import '../../theme/app_theme.dart';
+import '../../data/party_questions.dart';
+import 'party_game_host_screen.dart'
+    show kPartyServiceUuid, kQuestionCharacteristicUuid;
+import 'party_game_answer_screen.dart';
+import 'package:ble_peripheral/ble_peripheral.dart';
+
+class PartyGameConnectScreen extends StatefulWidget {
+  const PartyGameConnectScreen({super.key});
+
+  @override
+  State<PartyGameConnectScreen> createState() =>
+      _PartyGameConnectScreenState();
+}
+
+class _PartyGameConnectScreenState extends State<PartyGameConnectScreen> {
+  // iOS native channel
+  static const _channel = MethodChannel('digital_lifelines/ble_scanner');
+
+  // Android BLE scanner + central
+  final FlutterReactiveBle _ble = FlutterReactiveBle();
+  StreamSubscription<DiscoveredDevice>? _scanSubscription;
+  StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
+
+  static final Uuid _serviceUuid =
+      Uuid.parse(kPartyServiceUuid.toLowerCase());
+  static final Uuid _questionCharUuid =
+      Uuid.parse(kQuestionCharacteristicUuid.toLowerCase());
+
+  bool _isScanning = false;
+  String? _connectingDeviceId;
+  final Map<String, Map<String, dynamic>> _foundDevices = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isIOS) {
+      _channel.setMethodCallHandler(_handleMethodCall);
+    }
+    // Note: the underlying ble_peripheral plugin (used only by the host
+    // screen) was patched directly in pub-cache to guard against an
+    // uninitialized handler crash, so no initialize() call is needed here.
+  }
+
+  @override
+  void dispose() {
+    _scanSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    if (Platform.isIOS) {
+      _channel.invokeMethod('stopScan');
+    }
+    super.dispose();
+  }
+
+  Future<void> _handleMethodCall(MethodCall call) async {
+    if (call.method == 'deviceFound') {
+      final data = Map<String, dynamic>.from(call.arguments as Map);
+      final id = data['id'] as String;
+      if (!mounted) return;
+      setState(() {
+        _foundDevices[id] = data;
+      });
+    }
+  }
+
+  void _startScan() {
+    setState(() {
+      _isScanning = true;
+      _foundDevices.clear();
+    });
+
+    if (Platform.isIOS) {
+      _channel.invokeMethod('startScan');
+    } else {
+      _scanSubscription = _ble.scanForDevices(
+        withServices: [_serviceUuid],
+        scanMode: ScanMode.lowLatency,
+      ).listen((device) {
+        if (!mounted) return;
+        setState(() {
+          _foundDevices[device.id] = {
+            'id': device.id,
+            'name': device.name,
+            'rssi': device.rssi,
+          };
+        });
+      }, onError: (e) {
+        print('Scan error: $e');
+      });
+    }
+  }
+
+  void _stopScan() {
+    _scanSubscription?.cancel();
+    if (Platform.isIOS) {
+      _channel.invokeMethod('stopScan');
+    }
+    setState(() {
+      _isScanning = false;
+    });
+  }
+
+  void _connectToDevice(Map<String, dynamic> device) {
+    if (Platform.isIOS) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connecting from iOS is not supported yet.'),
+        ),
+      );
+      return;
+    }
+
+    _stopScan();
+    final deviceId = device['id'] as String;
+
+    setState(() {
+      _connectingDeviceId = deviceId;
+    });
+
+    _connectionSubscription?.cancel();
+    _connectionSubscription = _ble
+        .connectToDevice(
+      id: deviceId,
+      connectionTimeout: const Duration(seconds: 10),
+    )
+        .listen((connectionState) async {
+      if (connectionState.connectionState ==
+          DeviceConnectionState.connected) {
+        try {
+          final characteristic = QualifiedCharacteristic(
+            serviceId: _serviceUuid,
+            characteristicId: _questionCharUuid,
+            deviceId: deviceId,
+          );
+          final value = await _ble.readCharacteristic(characteristic);
+          final questionId = value.isNotEmpty ? value[0] : null;
+          final question =
+              questionId != null ? findPartyQuestionById(questionId) : null;
+
+          if (!mounted) return;
+
+          if (question == null) {
+            setState(() => _connectingDeviceId = null);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Connected, but could not read a valid question.'),
+              ),
+            );
+            return;
+          }
+
+          setState(() => _connectingDeviceId = null);
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PartyGameAnswerScreen(
+                ble: _ble,
+                deviceId: deviceId,
+                question: question,
+              ),
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          setState(() => _connectingDeviceId = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to read question: $e')),
+          );
+        }
+      }
+    }, onError: (e) {
+      if (!mounted) return;
+      setState(() => _connectingDeviceId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connection error: $e')),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final devices = _foundDevices.values.toList();
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          'Find a Player',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isScanning ? _stopScan : _startScan,
+                icon: Icon(
+                  _isScanning
+                      ? Icons.stop_circle_rounded
+                      : Icons.bluetooth_searching_rounded,
+                ),
+                label: Text(_isScanning ? 'Stop Scanning' : 'Scan for Nearby Phones'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isScanning)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: CircularProgressIndicator(),
+              ),
+            Expanded(
+              child: devices.isEmpty
+                  ? Center(
+                      child: Text(
+                        _isScanning
+                            ? 'Looking for nearby phones...'
+                            : 'No devices found yet.\nTap "Scan" to start.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.mutedText),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: devices.length,
+                      itemBuilder: (context, index) {
+                        final device = devices[index];
+                        final deviceId = device['id'] as String;
+                        final name = (device['name'] as String?)?.isNotEmpty == true
+                            ? device['name'] as String
+                            : '(unnamed)';
+                        final isConnecting = _connectingDeviceId == deviceId;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.smartphone_rounded,
+                              color: AppColors.primary,
+                            ),
+                            title: Text(name),
+                            subtitle: Text('Signal: ${device['rssi']} dBm'),
+                            trailing: ElevatedButton(
+                              onPressed: isConnecting
+                                  ? null
+                                  : () => _connectToDevice(device),
+                              child: isConnecting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text('Connect'),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

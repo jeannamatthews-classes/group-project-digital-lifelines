@@ -1,0 +1,786 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../../theme/app_theme.dart';
+import '../../data/party_questions.dart';
+import '../../data/party_query_engine.dart';
+
+class PartyGameDuoScreen extends StatefulWidget {
+  final int pairCode;
+  final Set<String> selectedCategories;
+
+  const PartyGameDuoScreen({
+    super.key,
+    required this.pairCode,
+    this.selectedCategories = const {'photos'},
+  });
+
+  @override
+  State<PartyGameDuoScreen> createState() => _PartyGameDuoScreenState();
+}
+
+class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
+  static const int _maxAnswerLength = 20;
+  static const _channel = MethodChannel('digital_lifelines/ble_scanner');
+
+  final FlutterBlePeripheral _peripheral = FlutterBlePeripheral();
+  final FlutterReactiveBle _ble = FlutterReactiveBle();
+  StreamSubscription<DiscoveredDevice>? _scanSubscription;
+  Timer? _resumeQuestionTimer;
+
+  PartyQuestion? _myQuestion;
+  bool _isBroadcastingQuestion = false;
+  bool _isBroadcastingAnswer = false;
+  String? _errorMessage;
+
+  PartyQuestion? _friendQuestion;
+  final TextEditingController _replyController = TextEditingController();
+  bool _replySent = false;
+  bool _isComputingReply = false;
+  String? _autoComputedReply;
+
+  String? _friendAnswer;
+
+  Timer? _scanRestartTimer;
+
+  // --- iOS-only state ---
+  String? _iosFriendDeviceId;
+  bool _iosHostingStarted = false;
+  Timer? _iosPollTimer;
+  final Set<String> _iosAttemptedDeviceIds = {};
+
+  Future<void> _computeAutoReply(PartyQuestion question) async {
+    setState(() {
+      _isComputingReply = true;
+    });
+
+    final result = await runQueryForQuestion(question);
+
+    if (!mounted) return;
+    setState(() {
+      _isComputingReply = false;
+      _autoComputedReply = result;
+      if (result != null) {
+        _replyController.text = result;
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isIOS) {
+      _channel.setMethodCallHandler(_handleIosMethodCall);
+      _channel.invokeMethod('startScan');
+      // GATT reads only happen when explicitly triggered - this timer
+      // periodically re-reads the friend's question characteristic so we
+      // notice if they picked a new question, or if our pending approval
+      // request finally got accepted.
+      _iosPollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (_iosFriendDeviceId != null) {
+          _channel.invokeMethod(
+              'rereadQuestion', {'deviceId': _iosFriendDeviceId});
+        }
+      });
+    } else {
+      _requestPermissionsThenListen();
+      // Android's BLE scanner can stop reporting fresh advertisement
+      // updates for a device it has already "seen" once, especially when
+      // that device's payload changes (like when a friend picks a new
+      // question). Periodically restarting the scan forces it to treat
+      // every device as new again, so updated broadcasts get picked up
+      // reliably.
+      _scanRestartTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+        _scanSubscription?.cancel();
+        _startListening();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (Platform.isIOS) {
+      _iosPollTimer?.cancel();
+      _channel.invokeMethod('stopHosting');
+      _channel.invokeMethod('stopScan');
+    } else {
+      _scanSubscription?.cancel();
+      _scanRestartTimer?.cancel();
+      _resumeQuestionTimer?.cancel();
+      _peripheral.stop();
+    }
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  // MARK: - iOS-specific handling
+
+  Future<void> _handleIosMethodCall(MethodCall call) async {
+    if (!mounted) return;
+    switch (call.method) {
+      case 'deviceFound':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        final name = data['name'] as String? ?? '';
+        final deviceId = data['id'] as String;
+        final expectedName = 'BLS${widget.pairCode}';
+        if (name == expectedName &&
+            !_iosAttemptedDeviceIds.contains(deviceId)) {
+          _iosAttemptedDeviceIds.add(deviceId);
+          _channel
+              .invokeMethod('connectAndReadQuestion', {'deviceId': deviceId});
+        }
+        break;
+
+      case 'questionRead':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        final deviceId = data['deviceId'] as String;
+        final questionId = data['questionId'] as int;
+        final question = findPartyQuestionById(questionId);
+        if (question == null) return;
+        final isNewQuestion = _friendQuestion?.id != question.id;
+        setState(() {
+          _iosFriendDeviceId = deviceId;
+          if (isNewQuestion) {
+            _friendQuestion = question;
+            _replySent = false;
+            _replyController.clear();
+            _isComputingReply = false;
+            _autoComputedReply = null;
+          }
+        });
+        if (isNewQuestion && question.queryType != null) {
+          _computeAutoReply(question);
+        }
+        break;
+
+      case 'connectionPending':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        setState(() {
+          _iosFriendDeviceId = data['deviceId'] as String;
+        });
+        break;
+
+      case 'connectionRequest':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        final deviceId = data['deviceId'] as String;
+        _showConnectionRequestDialog(deviceId);
+        break;
+
+      case 'answerReceived':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        setState(() {
+          _friendAnswer = data['answer'] as String;
+        });
+        break;
+
+      case 'answerSent':
+        setState(() {
+          _replySent = true;
+        });
+        break;
+
+      case 'answerSendFailed':
+        setState(() {
+          _errorMessage = 'Failed to send answer. Try again.';
+        });
+        break;
+    }
+  }
+
+  void _showConnectionRequestDialog(String deviceId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Connection Request'),
+        content: const Text(
+          'Someone with your pair code wants to connect and exchange '
+          'questions with you. Accept?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _channel
+                  .invokeMethod('rejectConnection', {'deviceId': deviceId});
+            },
+            child: const Text('Reject'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _channel
+                  .invokeMethod('acceptConnection', {'deviceId': deviceId});
+            },
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // MARK: - Android-specific handling (unchanged)
+
+  Future<void> _requestPermissionsThenListen() async {
+    // Android needs these granted at runtime, not just declared in the
+    // manifest - toggling them manually in Settings doesn't always
+    // register correctly, especially on some OEM Android skins.
+    await [
+      Permission.locationWhenInUse,
+      Permission.bluetoothScan,
+      Permission.bluetoothAdvertise,
+      Permission.bluetoothConnect,
+    ].request();
+    _startListening();
+  }
+
+  void _startListening() {
+    _scanSubscription = _ble.scanForDevices(
+      withServices: [],
+      scanMode: ScanMode.lowLatency,
+    ).listen((device) {
+      final data = device.manufacturerData;
+      if (data.length < 4) return;
+      if (data[0] != 0xFF || data[1] != 0xFF) return;
+
+      print('DUO_DEBUG: saw broadcast type=0x${data[2].toRadixString(16)} '
+          'incomingPairCode=${data[3]} myPairCode=${widget.pairCode} '
+          'fullData=$data');
+
+      // Ignore broadcasts from other pairs in the room - only accept ones
+      // tagged with our own pair code.
+      if (data[3] != widget.pairCode) return;
+
+      if (data[2] == 0xA1) {
+        // Friend is broadcasting a question.
+        if (data.length < 5) return;
+        final questionId = data[4];
+        final question = findPartyQuestionById(questionId);
+        if (question == null || !mounted) return;
+        if (_friendQuestion?.id != question.id) {
+          setState(() {
+            _friendQuestion = question;
+            _replySent = false;
+            _replyController.clear();
+            _isComputingReply = false;
+            _autoComputedReply = null;
+          });
+          if (question.queryType != null) {
+            _computeAutoReply(question);
+          }
+        }
+      } else if (data[2] == 0xA2) {
+        // Friend is broadcasting an answer to our question.
+        if (_myQuestion == null) return;
+        final payload = data.sublist(4);
+        if (payload.isEmpty || !mounted) return;
+        final answerText = utf8.decode(payload, allowMalformed: true);
+        setState(() {
+          _friendAnswer = answerText;
+        });
+      }
+    }, onError: (e) {
+      print('DUO_DEBUG: SCAN ERROR: $e');
+    });
+  }
+
+  Future<void> _startBroadcastingQuestion() async {
+    if (_myQuestion == null) return;
+    try {
+      final isSupported = await _peripheral.isSupported;
+      if (!isSupported) {
+        setState(() {
+          _errorMessage = 'This device does not support BLE advertising.';
+        });
+        return;
+      }
+
+      await _peripheral.stop();
+      // Small delay avoids a known Android BLE issue where restarting
+      // advertising immediately after stopping it can silently fail.
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // 0xA1 marks this as a QUESTION broadcast. Byte layout:
+      // [0xA1, pairCode, questionId]
+      final manufacturerData = Uint8List.fromList(
+          [0xA1, widget.pairCode & 0xFF, _myQuestion!.id & 0xFF]);
+
+      final advertiseData = AdvertiseData(
+        serviceUuid: '0000DDDD-0000-1000-8000-00805F9B34FB',
+        manufacturerId: 0xFFFF,
+        manufacturerData: manufacturerData,
+      );
+
+      await _peripheral.start(
+        advertiseData: advertiseData,
+        advertiseSettings: AdvertiseSettings(connectable: true),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isBroadcastingQuestion = true;
+        _isBroadcastingAnswer = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to broadcast question: $e';
+      });
+    }
+  }
+
+  // MARK: - Shared entry points (branch by platform)
+
+  Future<void> _pickQuestion(PartyQuestion question) async {
+    setState(() {
+      _myQuestion = question;
+      _friendAnswer = null;
+      _errorMessage = null;
+    });
+
+    if (Platform.isIOS) {
+      if (_iosHostingStarted) {
+        await _channel
+            .invokeMethod('updateHostedQuestion', {'questionId': question.id});
+      } else {
+        await _channel.invokeMethod('startHosting', {
+          'questionId': question.id,
+          'pairCode': widget.pairCode,
+        });
+        _iosHostingStarted = true;
+      }
+      if (!mounted) return;
+      setState(() {
+        _isBroadcastingQuestion = true;
+      });
+      return;
+    }
+
+    await _startBroadcastingQuestion();
+  }
+
+  Future<void> _sendReply() async {
+    final replyText = _replyController.text.trim();
+    if (replyText.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please type an answer first.';
+      });
+      return;
+    }
+
+    if (Platform.isIOS) {
+      if (_iosFriendDeviceId == null) {
+        setState(() {
+          _errorMessage = 'Not connected to your friend yet.';
+        });
+        return;
+      }
+      final truncated = replyText.length > _maxAnswerLength
+          ? replyText.substring(0, _maxAnswerLength)
+          : replyText;
+      await _channel.invokeMethod('sendAnswer', {
+        'deviceId': _iosFriendDeviceId,
+        'answer': truncated,
+      });
+      // _replySent gets set once the 'answerSent' callback comes back.
+      return;
+    }
+
+    try {
+      final isSupported = await _peripheral.isSupported;
+      if (!isSupported) {
+        setState(() {
+          _errorMessage = 'This device does not support BLE advertising.';
+        });
+        return;
+      }
+
+      await _peripheral.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final truncated = replyText.length > _maxAnswerLength
+          ? replyText.substring(0, _maxAnswerLength)
+          : replyText;
+
+      // 0xA2 marks this as an ANSWER broadcast. Byte layout:
+      // [0xA2, pairCode, ...answerBytes]
+      final answerBytes = utf8.encode(truncated);
+      final manufacturerData =
+          Uint8List.fromList([0xA2, widget.pairCode & 0xFF, ...answerBytes]);
+
+      final advertiseData = AdvertiseData(
+        manufacturerId: 0xFFFF,
+        manufacturerData: manufacturerData,
+      );
+
+      await _peripheral.start(
+        advertiseData: advertiseData,
+        advertiseSettings: AdvertiseSettings(connectable: false),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isBroadcastingAnswer = true;
+        _isBroadcastingQuestion = false;
+        _replySent = true;
+        _errorMessage = null;
+      });
+
+      // After a few seconds, automatically go back to broadcasting our own
+      // question (if we have one selected) - phones can only advertise one
+      // thing at a time, so this is how we "take turns" without the user
+      // having to manually switch anything.
+      _resumeQuestionTimer?.cancel();
+      _resumeQuestionTimer = Timer(const Duration(seconds: 6), () {
+        if (!mounted) return;
+        if (_myQuestion != null) {
+          _startBroadcastingQuestion();
+        } else {
+          _peripheral.stop();
+          setState(() {
+            _isBroadcastingAnswer = false;
+          });
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to send answer: $e';
+      });
+    }
+  }
+
+  void _showQuestionPicker() {
+    final filteredQuestions =
+        findQuestionsByCategories(widget.selectedCategories);
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: filteredQuestions.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'No questions available for the selected categories yet.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filteredQuestions.length,
+                  itemBuilder: (context, index) {
+                    final q = filteredQuestions[index];
+                    return ListTile(
+                      leading: const Icon(Icons.help_outline_rounded,
+                          color: AppColors.primary),
+                      title: Text(q.question),
+                      subtitle: Text(q.hint),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickQuestion(q);
+                      },
+                    );
+                  },
+                ),
+        );
+      },
+    );
+  }
+
+  String get _broadcastStatusLabel {
+    if (_iosFriendDeviceId != null || _friendQuestion != null) {
+      return 'Connected to friend!';
+    }
+    if (_isBroadcastingAnswer) return 'Sending your answer...';
+    if (_isBroadcastingQuestion) return 'Broadcasting your question...';
+    return 'Searching for nearby friend...';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: Text(
+          'Ask & Answer  \u2022  Code ${widget.pairCode}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+            fontSize: 16,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- My question section ---
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Your Question',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_myQuestion == null)
+                    Text(
+                      'Pick a question to start broadcasting it.',
+                      style: const TextStyle(color: AppColors.mutedText),
+                    )
+                  else
+                    Text(
+                      _myQuestion!.question,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColors.appBarText,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  if (_myQuestion != null)
+                    Row(
+                      children: [
+                        Icon(
+                          _isBroadcastingQuestion
+                              ? Icons.bluetooth_audio_rounded
+                              : Icons.bluetooth_rounded,
+                          size: 14,
+                          color: _isBroadcastingQuestion
+                              ? AppColors.accent
+                              : AppColors.mutedText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _broadcastStatusLabel,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.mutedText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (_friendAnswer != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Friend's answer:",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                              color: AppColors.mutedText,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _friendAnswer!,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.appBarText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _showQuestionPicker,
+                    icon: const Icon(Icons.help_outline_rounded, size: 18),
+                    label: Text(
+                      _myQuestion == null ? 'Pick a Question' : 'Change Question',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // --- Friend's question section ---
+            if (_friendQuestion != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Friend's Question",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: AppColors.mutedText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _friendQuestion!.question,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColors.appBarText,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.lightbulb_outline_rounded,
+                          size: 14,
+                          color: AppColors.mutedText,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _friendQuestion!.hint,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.mutedText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_friendQuestion!.queryType != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _isComputingReply
+                              ? Colors.grey.shade100
+                              : AppColors.accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            if (_isComputingReply)
+                              const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            else
+                              Icon(
+                                _autoComputedReply != null
+                                    ? Icons.auto_awesome_rounded
+                                    : Icons.info_outline_rounded,
+                                size: 15,
+                                color: AppColors.accent,
+                              ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _isComputingReply
+                                    ? 'Looking up your answer...'
+                                    : (_autoComputedReply != null
+                                        ? 'Found automatically from your data'
+                                        : 'Could not auto-find - type your own'),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.mutedText,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (!_replySent) ...[
+                      TextField(
+                        controller: _replyController,
+                        maxLength: _maxAnswerLength,
+                        decoration: const InputDecoration(
+                          labelText: 'Your reply',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _sendReply,
+                        icon: const Icon(Icons.send_rounded, size: 18),
+                        label: const Text('Send Reply'),
+                      ),
+                    ] else
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded,
+                              color: AppColors.accent, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Sent: ${_replyController.text.trim()}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.appBarText,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    "Waiting for your friend's question...",
+                    style: const TextStyle(color: AppColors.mutedText),
+                  ),
+                ),
+              ),
+
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

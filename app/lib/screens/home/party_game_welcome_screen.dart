@@ -1,0 +1,95 @@
+import 'package:flutter/material.dart';
+
+import '../../theme/app_theme.dart';
+import 'party_game_pair_code_screen.dart';
+
+class PartyGameWelcomeScreen extends StatelessWidget {
+  final Set<String> selectedCategories;
+
+  const PartyGameWelcomeScreen({
+    super.key,
+    this.selectedCategories = const {'photos'},
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppColors.background,
+        scrolledUnderElevation: 0.5,
+        title: const Text(
+          'Party Game',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.appBarText,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.celebration_rounded,
+                    size: 40,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Welcome to the Party Game!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: AppColors.appBarText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ask a friend nearby a question, check your own '
+                    'data for the answer, and see how you compare.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PartyGamePairCodeScreen(
+                        selectedCategories: selectedCategories,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Ask & Answer (Both at Once)'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -25,7 +25,17 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
-	<true/>
+        <true/>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Digital Lifelines needs access to your photos to extract location data and build your My Places timeline.</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>Digital Lifelines uses your photo location data to show where your photos were taken.</string>
+        <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+        <string>Digital Lifelines uses your location to show where your photos were taken and to power party game features.</string>
+        <key>NSBluetoothAlwaysUsageDescription</key>
+        <string>Digital Lifelines uses Bluetooth to connect with nearby friends for the Party Game feature.</string>
+        <key>NSBluetoothPeripheralUsageDescription</key>
+        <string>Digital Lifelines uses Bluetooth to broadcast party game questions to nearby friends.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,5 +76,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+        <string>bluetooth-peripheral</string>
+    </array>
 </dict>
 </plist>

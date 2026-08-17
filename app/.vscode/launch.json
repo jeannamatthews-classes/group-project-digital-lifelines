@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "Digital Lifelines (Flutter)",
+            "program": "lib/main.dart",
+            "request": "launch",
+            "type": "dart"
+        }
+    ]
+}

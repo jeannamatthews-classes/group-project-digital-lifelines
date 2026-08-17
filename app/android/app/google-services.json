@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "942012043341",
+    "project_id": "digital-lifelines",
+    "storage_bucket": "digital-lifelines.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:942012043341:android:d43a8bea8db24771dc4c04",
+        "android_client_info": {
+          "package_name": "edu.clarkson.cs550.digital_lifelines"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmQ3Kl3TbCe2bUUaIw0TxY4TbTiFIfXLs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
