@@ -15,6 +15,7 @@ import { PopUp } from './Components/popup'
 import EditTemplate from "./pages/editTemplate"
 import EditDashboard from "./pages/editDashboard"
 import Onboarding from "./pages/onboarding"
+import Contact from "./pages/contact"
 import './global.css'
 
 
@@ -41,6 +42,7 @@ function App() {
           <Route path="/auth" element={<Signup />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/dashboard/edit" element={<EditDashboard />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

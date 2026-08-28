@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Download, Heart, Check, Copy, Share2 } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Button } from "./buttons"
 import { supabase } from "../../lib/supabase"
 import {
@@ -24,6 +25,7 @@ export function TemplateActions({ template, onCountsChange }: TemplateActionsPro
   const [likeBusy, setLikeBusy] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   const json = JSON.stringify(buildTemplateJson(template), null, 2)
 
@@ -80,7 +82,7 @@ export function TemplateActions({ template, onCountsChange }: TemplateActionsPro
 
   async function handleLike() {
     if (!userId) {
-      alert("Log in to like templates.")
+      setActionMessage("Log in to like templates.")
       return
     }
     if (likeBusy) return
@@ -100,7 +102,7 @@ export function TemplateActions({ template, onCountsChange }: TemplateActionsPro
     } catch (err) {
       // revert on failure
       setLiked(!next)
-      alert(err instanceof Error ? err.message : "Couldn't update like.")
+      setActionMessage(err instanceof Error ? err.message : "Couldn't update like.")
     } finally {
       setLikeBusy(false)
     }
@@ -113,10 +115,12 @@ export function TemplateActions({ template, onCountsChange }: TemplateActionsPro
   }
 
   function handleShare() {
+    const currentUrl = typeof window !== "undefined" ? window.location.href : ""
+
     if (navigator.share) {
-      navigator.share({ title: template.template_name, text: template.tagline ?? "" }).catch(() => {})
+      navigator.share({ title: template.template_name, url: currentUrl }).catch(() => {})
     } else {
-      navigator.clipboard.writeText(typeof window !== "undefined" ? window.location.href : "")
+      navigator.clipboard.writeText(currentUrl)
     }
   }
 
@@ -140,6 +144,11 @@ export function TemplateActions({ template, onCountsChange }: TemplateActionsPro
           Share
         </Button>
       </div>
+      {actionMessage && (
+        <p className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground" role="status">
+          {actionMessage} {!userId && <Link to="/auth" className="font-semibold text-primary hover:underline">Login</Link>}
+        </p>
+      )}
     </div>
   )
 }

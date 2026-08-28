@@ -16,31 +16,31 @@ import {
 } from "../../lib/supabaseTemplates"
 import { cn } from "../../lib/utils"
 
-type Tab = "uploads" | "downloaded" | "liked"
+type Tab = "my uploads" | "my downloads" | "my likes"
 
 const TABS: { key: Tab; label: string; icon: typeof Upload }[] = [
-  { key: "uploads", label: "My uploads", icon: Upload },
-  { key: "downloaded", label: "Downloaded", icon: Download },
-  { key: "liked", label: "Liked", icon: Heart },
+  { key: "my uploads", label: "My Uploads", icon: Upload },
+  { key: "my downloads", label: "My Downloads", icon: Download },
+  { key: "my likes", label: "My Likes", icon: Heart },
 ]
 
 const emptyCopy: Record<Tab, { title: string; body: string }> = {
-  uploads: {
+  "my uploads": {
     title: "No uploads yet",
     body: "Share your first timeline template with the community.",
   },
-  downloaded: {
+  "my downloads": {
     title: "Nothing downloaded yet",
     body: "Browse the gallery and download a template to get started.",
   },
-  liked: {
+  "my likes": {
     title: "No liked templates",
     body: "Tap the heart on any template to save it here.",
   },
 }
 
 export default function DashboardPage() {
-  const [tab, setTab] = useState<Tab>("uploads")
+  const [tab, setTab] = useState<Tab>("my uploads")
   const [profile, setProfile] = useState<DbProfile | null>(null)
   const [joinedAt, setJoinedAt] = useState<string | null>(null)
   const [uploads, setUploads] = useState<DbTemplate[]>([])
@@ -143,7 +143,7 @@ export default function DashboardPage() {
           Log in to see your uploads, downloads, and liked templates.
         </p>
         <Button asChild className="mt-6">
-          <a href="/login">Log in</a>
+          <a href="/auth">Log in</a>
         </Button>
       </div>
     )
@@ -161,7 +161,7 @@ export default function DashboardPage() {
   const totalLikes = uploads.reduce((sum, t) => sum + (t.likes ?? 0), 0)
   const avatarColor = colorForUsername(profile.username)
 
-  const current = tab === "uploads" ? uploads : tab === "downloaded" ? downloaded : liked
+  const current = tab === "my uploads" ? uploads : tab === "my downloads" ? downloaded : liked
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -231,11 +231,11 @@ export default function DashboardPage() {
       {/* Stats */}
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: "Templates shared", value: uploads.length, icon: Upload },
-          { label: "Total downloads", value: totalDownloads.toLocaleString(), icon: Download },
-          { label: "Total likes", value: totalLikes.toLocaleString(), icon: Heart },
+          { label: "Templates Shared", value: uploads.length, icon: Upload },
+          { label: "Total Downloads", value: totalDownloads.toLocaleString(), icon: Download },
+          { label: "Total Likes", value: totalLikes.toLocaleString(), icon: Heart },
           {
-            label: "Member since",
+            label: "Member Since",
             value: joinedAt
               ? new Date(joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
               : "—",
@@ -257,9 +257,9 @@ export default function DashboardPage() {
         <div className="flex gap-1">
           {TABS.map((t) => {
             const count =
-              t.key === "uploads"
+              t.key === "my uploads"
                 ? uploads.length
-                : t.key === "downloaded"
+                : t.key === "my downloads"
                   ? downloaded.length
                   : liked.length
             return (
@@ -282,7 +282,7 @@ export default function DashboardPage() {
             )
           })}
         </div>
-        {tab === "uploads" && (
+        {tab === "my uploads" && (
           <Button asChild size="sm" className="hidden sm:inline-flex">
             <a href="/upload">
               <Upload className="h-4 w-4" />
@@ -305,8 +305,8 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold">{emptyCopy[tab].title}</h3>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">{emptyCopy[tab].body}</p>
             <Button asChild className="mt-5">
-              <a href={tab === "uploads" ? "/upload" : "/explore"}>
-                {tab === "uploads" ? "Share a template" : "Explore templates"}
+              <a href={tab === "my uploads" ? "/upload" : "/explore"}>
+                {tab === "my uploads" ? "Share a template" : "Explore templates"}
               </a>
             </Button>
           </div>

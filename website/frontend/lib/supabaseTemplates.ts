@@ -204,27 +204,35 @@ export async function fetchDownloadedTemplates(userId: string): Promise<DbTempla
 }
 
 export interface TemplateJson {
-  name: string
-  version: number
-  category: Category
-  tags: string[]
-  author: string
-  fields: { name: string; type: FieldType; unit?: string; options?: string[] }[]
+  schema_version: 1
+  app: "Digital Lifelines"
+  type: "template"
+  timelines: {
+    name: string
+    fields: { name: string; type: "text" | "number" }[]
+    entries: never[]
+  }[]
+}
+
+function appFieldType(type: FieldType): "text" | "number" {
+  return type === "integer" || type === "double" ? "number" : "text"
 }
 
 export function buildTemplateJson(template: DbTemplate): TemplateJson {
   return {
-    name: template.template_name,
-    version: template.version,
-    category: template.category,
-    tags: splitTags(template.tags),
-    author: template.author?.username ?? "unknown",
-    fields: template.fields.map((f) => ({
-      name: f.name,
-      type: f.type,
-      ...(f.unit ? { unit: f.unit } : {}),
-      ...(f.options ? { options: f.options } : {}),
-    })),
+    schema_version: 1,
+    app: "Digital Lifelines",
+    type: "template",
+    timelines: [
+      {
+        name: template.template_name,
+        fields: template.fields.map((field) => ({
+          name: field.name,
+          type: appFieldType(field.type),
+        })),
+        entries: [],
+      },
+    ],
   }
 }
 

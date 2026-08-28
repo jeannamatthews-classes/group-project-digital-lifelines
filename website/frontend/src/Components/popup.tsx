@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Download, Smartphone, Apple } from "lucide-react";
 import { Button } from "./buttons";
 import { cn } from "../../lib/utils";
@@ -9,15 +9,27 @@ export function PopUp() {
   const [mounted, setMounted] = useState(true);
   const [visible, setVisible] = useState(false);
   const [showPlatformChooser, setShowPlatformChooser] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(frame);
+    const handleOpen = () => {
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
+      setMounted(true);
+      requestAnimationFrame(() => setVisible(true));
+      setShowPlatformChooser(true);
+    };
+
+    window.addEventListener("open-app-popup", handleOpen);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("open-app-popup", handleOpen);
+    };
   }, []);
 
   function handleClose() {
     setVisible(false);
-    window.setTimeout(() => setMounted(false), ANIMATION_MS);
+    closeTimer.current = window.setTimeout(() => setMounted(false), ANIMATION_MS);
   }
 
   function handleDownloadClick() {
@@ -90,7 +102,7 @@ export function PopUp() {
                 </p>
                 <Button asChild className="mt-5 w-full">
                   <a
-                    href="https://sacbloctwbvcnkadihty.supabase.co/storage/v1/object/public/Downloadables/app-release.apk"
+                    href="https://sacbloctwbvcnkadihty.supabase.co/storage/v1/object/public/Downloadables/DigitalLifelines.apk"
                     download
                   >
                     <Download className="h-4 w-4" />

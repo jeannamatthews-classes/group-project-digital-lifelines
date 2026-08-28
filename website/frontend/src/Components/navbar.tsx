@@ -93,6 +93,9 @@ export function NavBar() {
               </Link>
             )}
           </Button>
+          <Link to="/contact">
+              Contact Us
+            </Link>
         </div>
 
         <button
@@ -108,9 +111,9 @@ export function NavBar() {
         <div className="border-t border-border bg-background md:hidden">
           <nav className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3">
             {NAV_LINKS.map((link) => (
-              <a
+              <Link
                 key={link.href}
-                href={link.href}
+                to={link.href}
                 onClick={() => setOpen(false)}
                 className={cn(
                   "rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
@@ -120,13 +123,32 @@ export function NavBar() {
                 )}
               >
                 {link.label}
-              </a>
-            ))}
-            <Button asChild className="mt-2">
-              <Link to="/upload" onClick={() => setOpen(false)}>
-                <Upload className="h-4 w-4" />
-                Share a template
               </Link>
+            ))}
+            <Link
+              to="/contact"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                pathname === "/contact"
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:bg-secondary",
+              )}
+            >
+              Contact Us
+            </Link>
+            <Button asChild className="mt-2">
+              {isLoggedIn() ? (
+                <Link to="/upload" onClick={() => setOpen(false)}>
+                  <Upload className="h-4 w-4" />
+                  Share a template
+                </Link>
+              ) : (
+                <Link to="/auth" onClick={() => setOpen(false)}>
+                  <User className="h-4 w-4" />
+                  Login/Signup
+                </Link>
+              )}
             </Button>
           </nav>
         </div>

@@ -67,6 +67,7 @@ export default function UploadPage() {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [hasUnsupportedEntries, setHasUnsupportedEntries] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function addField() {
@@ -85,24 +86,50 @@ export default function UploadPage() {
   function handleFile(file: File | undefined) {
     if (!file) return
     setFileName(file.name)
+    setHasUnsupportedEntries(false)
     file.text().then((text) => {
       try {
-        const parsed = JSON.parse(text)
-        if (parsed.name) setName(parsed.name)
-        if (parsed.category) setCategory(parsed.category)
+        const parsed = JSON.parse(text) as Record<string, unknown>
+        const timelines = Array.isArray(parsed.timelines) ? parsed.timelines : null
+        if (timelines && timelines.length !== 1) {
+          throw new Error("The JSON must contain exactly one timeline for a website template.")
+        }
+        const timeline = timelines
+          ? (timelines[0] as Record<string, unknown> | undefined)
+          : parsed
+
+        if (!timeline) throw new Error("The JSON does not contain a timeline.")
+
+        if (typeof timeline.name === "string") setName(timeline.name)
+        if (typeof parsed.category === "string") setCategory(parsed.category as Category)
         if (Array.isArray(parsed.tags)) setTags(parsed.tags.join(", "))
-        if (Array.isArray(parsed.fields)) {
+
+        const rawFields = timeline.fields
+        if (Array.isArray(rawFields)) {
           setFields(
-            parsed.fields.map((f: { name?: string; type?: FieldType; unit?: string }, i: number) => ({
-              id: `imp${i}`,
-              name: f.name ?? "",
-              type: (f.type as FieldType) ?? "text",
-              unit: f.unit ?? "",
-            })),
+            rawFields.map((rawField, i) => {
+              const field = rawField as { name?: unknown; type?: unknown; unit?: unknown }
+              const type = field.type === "number" ? "integer" : field.type
+              return {
+                id: `imp${i}`,
+                name: typeof field.name === "string" ? field.name : "",
+                type: FIELD_TYPES.some((option) => option.value === type)
+                  ? (type as FieldType)
+                  : "text",
+                unit: typeof field.unit === "string" ? field.unit : "",
+              }
+            }),
+          )
+        }
+
+        if (Array.isArray(timeline.entries) && timeline.entries.length > 0) {
+          setHasUnsupportedEntries(true)
+          setSubmitError(
+            "This file contains entries, but the website stores templates only. Import the file directly in the app to keep its entry values.",
           )
         }
       } catch {
-        // ignore invalid JSON
+        setSubmitError("Could not read this JSON template.")
       }
     })
   }
@@ -116,15 +143,19 @@ export default function UploadPage() {
 
   const previewJson = JSON.stringify(
     {
-      name: name || "Untitled Timeline",
-      version: TEMPLATE_VERSION,
-      category,
-      tags: tagList,
-      fields: namedFields.map((f) => ({
-        name: f.name,
-        type: f.type,
-        ...(f.unit ? { unit: f.unit } : {}),
-      })),
+      schema_version: 1,
+      app: "Digital Lifelines",
+      type: "template",
+      timelines: [
+        {
+          name: name || "Untitled Timeline",
+          fields: namedFields.map((field) => ({
+            name: field.name,
+            type: field.type === "integer" || field.type === "double" ? "number" : "text",
+          })),
+          entries: [],
+        },
+      ],
     },
     null,
     2,
@@ -138,6 +169,7 @@ export default function UploadPage() {
       setSubmitError("Add at least one named field before submitting.")
       return
     }
+    if (hasUnsupportedEntries) return
 
     setIsSubmitting(true)
 
