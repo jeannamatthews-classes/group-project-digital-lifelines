@@ -205,6 +205,8 @@ export default function Contact() {
               <ul className="mt-5 space-y-4 text-sm leading-relaxed text-muted-foreground">
                 <li><span className="font-semibold text-foreground">For support:</span> include the page or template where you ran into trouble.</li>
                 <li><span className="font-semibold text-foreground">For ideas:</span> tell us what you were trying to do and what would make it easier.</li>
+                <li><span className="font-semibold text-foreground">For Experience:</span> let us know something you learned new about someone or how this app helped you connect with someone.</li>
+
               </ul>
             </aside>
           </section>

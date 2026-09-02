@@ -93,6 +93,10 @@ export default function Carousel() {
                     <h1 className="mt-6 text-balance font-serif text-5xl font-bold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
                       Digital Lifelines  
                     </h1>
+                    <h2 className="mt-6 font-serif text-xl font-semibold leading-[1.05] tracking-tight sm:text-xl lg:text-3xl">
+                      A party game with a point to make about data privacy
+                    </h2>
+
                     <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
                       Discover and share custom timeline templates for Digital Lifelines. Download a ready-made
                       JSON, import it into the app, and start recording your moments.
