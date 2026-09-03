@@ -1,0 +1,218 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { ArrowRight, Download, Search, Upload, Users, Disc2, Loader2 } from "lucide-react"
+import { Button } from "../Components/buttons"
+import { CATEGORIES } from "../../lib/templates"
+import { DynamicIcon } from "../Components/icons"
+import { TemplateCard } from "../Components/templateCard"
+import Carousel from "../Components/carousel"
+import { fetchFeaturedTemplates, fetchTrendingTemplates, type DbTemplate } from "../../lib/supabaseTemplates"
+
+export default function Landing() {
+  const [featured, setFeatured] = useState<DbTemplate[]>([])
+  const [trending, setTrending] = useState<DbTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [featuredData, trendingData] = await Promise.all([
+          fetchFeaturedTemplates(8),
+          fetchTrendingTemplates(8),
+        ])
+        if (!cancelled) {
+          setFeatured(featuredData)
+          setTrending(trendingData)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load templates.")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+
+    function handlePageShow(e: PageTransitionEvent) {
+      if (e.persisted) load()
+    }
+    window.addEventListener("pageshow", handlePageShow)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("pageshow", handlePageShow)
+    }
+  }, [])
+
+  return (
+    <>
+      {/* digital lifelines */}
+
+      <Carousel />
+
+      {/* categories */}
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="flex items-end justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Browse by category</h2>
+            <p className="mt-1 text-muted-foreground">Find a template for every part of your life.</p>
+          </div>
+        </div>
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {CATEGORIES.map((cat) => (
+            <a
+              key={cat.name}
+              href="/explore"
+              className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm"
+            >
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{ backgroundColor: cat.mutedColor, color: cat.color }}
+              >
+                <DynamicIcon name={cat.icon} className="h-5 w-5" />
+              </div>
+              <span className="text-sm font-medium leading-tight">{cat.name}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* how it works */}
+
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 border-y border-border">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-balance text-3xl font-semibold tracking-tight">How it works</h2>
+          <p className="mt-3 text-muted-foreground">
+            From browsing to recording in 3 simple steps
+          </p>
+        </div>
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {[
+            {
+              icon: Search,
+              title: "Find a template",
+              body: "Browse the website by category, tags, or popularity to find a timeline that fits how you want to track your life.",
+            },
+            {
+              icon: Download,
+              title: "Download the JSON",
+              body: "Grab the template file with one click. Each template is a small, human-readable JSON file you can inspect.",
+            },
+            {
+              icon: Disc2,
+              title: "Import & record",
+              body: "Open Digital Lifelines App, import the JSON, and your custom timeline is ready. Start recording instantly.",
+            },
+          ].map((step, i) => (
+            <div key={step.title} className="relative rounded-2xl border border-border bg-card p-6">
+              <span className="absolute right-5 top-5 font-serif text-4xl font-bold text-muted-foreground/30">
+                {i + 1}
+              </span>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <step.icon className="h-6 w-6" />
+              </div>
+              <h3 className="mt-5 text-lg font-semibold">{step.title}</h3>
+              <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {error && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Couldn't load templates: {error}
+          </div>
+        </section>
+      )}
+
+      {loading && (
+        <section className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-16 text-muted-foreground sm:px-6 lg:px-8">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading templates...
+        </section>
+      )}
+
+      {/* featured */}
+
+      {!loading && featured.length > 0 && (
+        <section className="bg-card/50">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Featured templates</h2>
+                <p className="mt-1 text-muted-foreground">Hand-picked by the team.</p>
+              </div>
+              <Button asChild variant="outline" className="hidden sm:inline-flex">
+                <a href="/explore">
+                  View all
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {featured.map((template) => (
+                <TemplateCard key={template.id} template={template} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* trending */}
+
+      {!loading && trending.length > 0 && (
+        <section className="bg-card/50">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Trending templates</h2>
+                <p className="mt-1 text-muted-foreground">What's popular right now within the community.</p>
+              </div>
+              <Button asChild variant="outline" className="hidden sm:inline-flex">
+                <a href="/explore">
+                  View all
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {trending.map((template) => (
+                <TemplateCard key={template.id} template={template} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CTA */}
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 border-y border-border bg-background/50">
+        <div className="overflow-hidden rounded-3xl bg-primary px-6 py-16 text-center text-primary-foreground sm:px-16">
+          <Users className="mx-auto h-10 w-10 opacity-90" />
+          <h2 className="mx-auto mt-6 max-w-2xl text-balance font-serif text-3xl font-bold sm:text-4xl">
+            Built a timeline you love? Share it with the world.
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-pretty leading-relaxed opacity-90">
+            Become one of our lifeloggers sharing the templates that help them stay intentional. It only
+            takes a second to upload.
+          </p>
+          <Button asChild size="lg" variant="secondary" className="mt-8">
+            <a href="/upload">
+              <Upload className="h-4 w-4" />
+              Share a template
+            </a>
+          </Button>
+        </div>
+      </section>
+    </>
+  )
+}
