@@ -140,16 +140,34 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
         // name gets silently overridden and matching breaks.
         let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? ""
         let serviceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?.map { $0.uuidString } ?? []
+        let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
+        let pairCode = androidPairCode(from: manufacturerData)
+        let manufacturerHex = manufacturerData?.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "none"
 
         discoveredPeripherals[peripheral.identifier.uuidString] = peripheral
 
-        print("BleScanner: found device id=\(peripheral.identifier.uuidString) name=\(name) rssi=\(RSSI) services=\(serviceUUIDs)")
-        let result: [String: Any] = [
+        print("BleScanner: found device id=\(peripheral.identifier.uuidString) name=\(name) rssi=\(RSSI) services=\(serviceUUIDs) manufacturer=\(manufacturerHex) pairCode=\(pairCode.map { String($0) } ?? \"nil\")")
+        var result: [String: Any] = [
             "id": peripheral.identifier.uuidString,
             "name": name,
             "rssi": RSSI.intValue
         ]
+        if let pairCode = pairCode {
+            result["pairCode"] = pairCode
+        }
         channel?.invokeMethod("deviceFound", arguments: result)
+    }
+
+    private func androidPairCode(from manufacturerData: Data?) -> Int? {
+        guard let manufacturerData = manufacturerData else { return nil }
+        var bytes = [UInt8](manufacturerData)
+
+        // CoreBluetooth may include the 0xFFFF company ID in the returned bytes.
+        if bytes.count >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFF {
+            bytes.removeFirst(2)
+        }
+        guard bytes.count >= 2 && bytes[0] == 0xA1 else { return nil }
+        return Int(bytes[1])
     }
 
     // MARK: - Connecting + reading question (joiner side)

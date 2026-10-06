@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
@@ -33,6 +32,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   final FlutterBlePeripheral _peripheral = FlutterBlePeripheral();
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
+  StreamSubscription<ConnectionStateUpdate>? _androidConnectionSubscription;
   Timer? _resumeQuestionTimer;
 
   PartyQuestion? _myQuestion;
@@ -49,12 +49,25 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   String? _friendAnswer;
 
   Timer? _scanRestartTimer;
+  Timer? _androidQuestionPollTimer;
 
   // --- iOS-only state ---
   String? _iosFriendDeviceId;
   bool _iosHostingStarted = false;
   Timer? _iosPollTimer;
   final Set<String> _iosAttemptedDeviceIds = {};
+  String? _androidFriendDeviceId;
+  final Set<String> _androidAttemptedDeviceIds = {};
+
+  static final Uuid _serviceUuid = Uuid.parse(
+    '0000DDDD-0000-1000-8000-00805F9B34FB',
+  );
+  static final Uuid _questionCharacteristicUuid = Uuid.parse(
+    '0000DDDE-0000-1000-8000-00805F9B34FB',
+  );
+  static final Uuid _answerCharacteristicUuid = Uuid.parse(
+    '0000DDDF-0000-1000-8000-00805F9B34FB',
+  );
 
   Future<void> _computeAutoReply(PartyQuestion question) async {
     setState(() {
@@ -85,11 +98,13 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       // request finally got accepted.
       _iosPollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         if (_iosFriendDeviceId != null) {
-          _channel.invokeMethod(
-              'rereadQuestion', {'deviceId': _iosFriendDeviceId});
+          _channel.invokeMethod('rereadQuestion', {
+            'deviceId': _iosFriendDeviceId,
+          });
         }
       });
     } else {
+      _channel.setMethodCallHandler(_handleAndroidMethodCall);
       _requestPermissionsThenListen();
       // Android's BLE scanner can stop reporting fresh advertisement
       // updates for a device it has already "seen" once, especially when
@@ -112,6 +127,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       _channel.invokeMethod('stopScan');
     } else {
       _scanSubscription?.cancel();
+      _androidConnectionSubscription?.cancel();
+      _androidQuestionPollTimer?.cancel();
+      _channel.invokeMethod('stopAndroidGattHosting');
       _scanRestartTimer?.cancel();
       _resumeQuestionTimer?.cancel();
       _peripheral.stop();
@@ -128,13 +146,19 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       case 'deviceFound':
         final data = Map<String, dynamic>.from(call.arguments as Map);
         final name = data['name'] as String? ?? '';
+        final advertisedPairCode = data['pairCode'] as int?;
         final deviceId = data['id'] as String;
         final expectedName = 'BLS${widget.pairCode}';
-        if (name == expectedName &&
+        print(
+          'DUO_DEBUG: iOS discovery id=$deviceId name=$name '
+          'advertisedPairCode=$advertisedPairCode expectedPairCode=${widget.pairCode}',
+        );
+        if ((name == expectedName || advertisedPairCode == widget.pairCode) &&
             !_iosAttemptedDeviceIds.contains(deviceId)) {
           _iosAttemptedDeviceIds.add(deviceId);
-          _channel
-              .invokeMethod('connectAndReadQuestion', {'deviceId': deviceId});
+          _channel.invokeMethod('connectAndReadQuestion', {
+            'deviceId': deviceId,
+          });
         }
         break;
 
@@ -194,6 +218,14 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
     }
   }
 
+  Future<void> _handleAndroidMethodCall(MethodCall call) async {
+    if (!mounted || call.method != 'androidAnswerReceived') return;
+    final data = Map<String, dynamic>.from(call.arguments as Map);
+    setState(() {
+      _friendAnswer = data['answer'] as String;
+    });
+  }
+
   void _showConnectionRequestDialog(String deviceId) {
     showDialog(
       context: context,
@@ -208,16 +240,14 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              _channel
-                  .invokeMethod('rejectConnection', {'deviceId': deviceId});
+              _channel.invokeMethod('rejectConnection', {'deviceId': deviceId});
             },
             child: const Text('Reject'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              _channel
-                  .invokeMethod('acceptConnection', {'deviceId': deviceId});
+              _channel.invokeMethod('acceptConnection', {'deviceId': deviceId});
             },
             child: const Text('Accept'),
           ),
@@ -242,53 +272,141 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   }
 
   void _startListening() {
-    _scanSubscription = _ble.scanForDevices(
-      withServices: [],
-      scanMode: ScanMode.lowLatency,
-    ).listen((device) {
-      final data = device.manufacturerData;
-      if (data.length < 4) return;
-      if (data[0] != 0xFF || data[1] != 0xFF) return;
+    _scanSubscription = _ble
+        .scanForDevices(withServices: [], scanMode: ScanMode.lowLatency)
+        .listen(
+          (device) {
+            final data = device.manufacturerData;
+            final expectedName = 'BLS${widget.pairCode}';
+            final isIosHost =
+                device.name == expectedName ||
+                device.name.startsWith('${expectedName}Q');
 
-      print('DUO_DEBUG: saw broadcast type=0x${data[2].toRadixString(16)} '
-          'incomingPairCode=${data[3]} myPairCode=${widget.pairCode} '
-          'fullData=$data');
+            // iOS advertises the pair code in its local name and exposes the
+            // question through the shared GATT service, rather than Android's
+            // manufacturer-data packet.
+            if (isIosHost) {
+              _connectToIosHost(device.id);
+            }
 
-      // Ignore broadcasts from other pairs in the room - only accept ones
-      // tagged with our own pair code.
-      if (data[3] != widget.pairCode) return;
+            if (data.length < 4 || data[0] != 0xFF || data[1] != 0xFF) return;
 
-      if (data[2] == 0xA1) {
-        // Friend is broadcasting a question.
-        if (data.length < 5) return;
-        final questionId = data[4];
-        final question = findPartyQuestionById(questionId);
-        if (question == null || !mounted) return;
-        if (_friendQuestion?.id != question.id) {
-          setState(() {
-            _friendQuestion = question;
-            _replySent = false;
-            _replyController.clear();
-            _isComputingReply = false;
-            _autoComputedReply = null;
-          });
-          if (question.queryType != null) {
-            _computeAutoReply(question);
-          }
-        }
-      } else if (data[2] == 0xA2) {
-        // Friend is broadcasting an answer to our question.
-        if (_myQuestion == null) return;
-        final payload = data.sublist(4);
-        if (payload.isEmpty || !mounted) return;
-        final answerText = utf8.decode(payload, allowMalformed: true);
-        setState(() {
-          _friendAnswer = answerText;
-        });
+            print(
+              'DUO_DEBUG: saw broadcast type=0x${data[2].toRadixString(16)} '
+              'incomingPairCode=${data[3]} myPairCode=${widget.pairCode} '
+              'fullData=$data',
+            );
+
+            // Ignore broadcasts from other pairs in the room - only accept ones
+            // tagged with our own pair code.
+            if (data[3] != widget.pairCode) return;
+
+            if (data[2] == 0xA1) {
+              // Friend is broadcasting a question.
+              if (data.length < 5) return;
+              final questionId = data[4];
+              final question = findPartyQuestionById(questionId);
+              if (question == null || !mounted) return;
+              if (_friendQuestion?.id != question.id) {
+                setState(() {
+                  _friendQuestion = question;
+                  _replySent = false;
+                  _replyController.clear();
+                  _isComputingReply = false;
+                  _autoComputedReply = null;
+                });
+                if (question.queryType != null) {
+                  _computeAutoReply(question);
+                }
+              }
+            } else if (data[2] == 0xA2) {
+              // Friend is broadcasting an answer to our question.
+              if (_myQuestion == null) return;
+              final payload = data.sublist(4);
+              if (payload.isEmpty || !mounted) return;
+              final answerText = utf8.decode(payload, allowMalformed: true);
+              setState(() {
+                _friendAnswer = answerText;
+              });
+            }
+          },
+          onError: (e) {
+            print('DUO_DEBUG: SCAN ERROR: $e');
+          },
+        );
+  }
+
+  void _connectToIosHost(String deviceId) {
+    if (!_androidAttemptedDeviceIds.add(deviceId)) return;
+
+    _androidConnectionSubscription?.cancel();
+    _androidQuestionPollTimer?.cancel();
+    _androidConnectionSubscription = _ble
+        .connectToDevice(
+          id: deviceId,
+          servicesWithCharacteristicsToDiscover: {
+            _serviceUuid: [
+              _questionCharacteristicUuid,
+              _answerCharacteristicUuid,
+            ],
+          },
+        )
+        .listen(
+          (state) async {
+            if (state.connectionState != DeviceConnectionState.connected)
+              return;
+
+            final characteristic = QualifiedCharacteristic(
+              serviceId: _serviceUuid,
+              characteristicId: _questionCharacteristicUuid,
+              deviceId: deviceId,
+            );
+            Future<void> readQuestion() async {
+              try {
+                final value = await _ble.readCharacteristic(characteristic);
+                if (value.isEmpty) return;
+                final question = findPartyQuestionById(value.first);
+                // iOS returns question ID 0 until the host approves us.
+                if (question == null || !mounted) return;
+                _androidQuestionPollTimer?.cancel();
+                _androidQuestionPollTimer = null;
+                _androidFriendDeviceId = deviceId;
+                _setFriendQuestion(question);
+              } catch (e) {
+                print('DUO_DEBUG: GATT read failed: $e');
+              }
+            }
+
+            await readQuestion();
+            if (!mounted || _androidFriendDeviceId == deviceId) return;
+            _androidQuestionPollTimer = Timer.periodic(
+              const Duration(seconds: 3),
+              (_) => readQuestion(),
+            );
+          },
+          onError: (e) {
+            print('DUO_DEBUG: GATT connection failed: $e');
+            _androidQuestionPollTimer?.cancel();
+            _androidQuestionPollTimer = null;
+            _androidAttemptedDeviceIds.remove(deviceId);
+          },
+        );
+  }
+
+  void _setFriendQuestion(PartyQuestion question) {
+    final isNewQuestion = _friendQuestion?.id != question.id;
+    setState(() {
+      _friendQuestion = question;
+      if (isNewQuestion) {
+        _replySent = false;
+        _replyController.clear();
+        _isComputingReply = false;
+        _autoComputedReply = null;
       }
-    }, onError: (e) {
-      print('DUO_DEBUG: SCAN ERROR: $e');
     });
+    if (isNewQuestion && question.queryType != null) {
+      _computeAutoReply(question);
+    }
   }
 
   Future<void> _startBroadcastingQuestion() async {
@@ -309,15 +427,22 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
       // 0xA1 marks this as a QUESTION broadcast. Byte layout:
       // [0xA1, pairCode, questionId]
-      final manufacturerData = Uint8List.fromList(
-          [0xA1, widget.pairCode & 0xFF, _myQuestion!.id & 0xFF]);
+      final manufacturerData = Uint8List.fromList([
+        0xA1,
+        widget.pairCode & 0xFF,
+        _myQuestion!.id & 0xFF,
+      ]);
 
       final advertiseData = AdvertiseData(
         serviceUuid: '0000DDDD-0000-1000-8000-00805F9B34FB',
+        localName: 'BLS${widget.pairCode}',
         manufacturerId: 0xFFFF,
         manufacturerData: manufacturerData,
       );
 
+      await _channel.invokeMethod('startAndroidGattHosting', {
+        'questionId': _myQuestion!.id,
+      });
       await _peripheral.start(
         advertiseData: advertiseData,
         advertiseSettings: AdvertiseSettings(connectable: true),
@@ -347,8 +472,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
     if (Platform.isIOS) {
       if (_iosHostingStarted) {
-        await _channel
-            .invokeMethod('updateHostedQuestion', {'questionId': question.id});
+        await _channel.invokeMethod('updateHostedQuestion', {
+          'questionId': question.id,
+        });
       } else {
         await _channel.invokeMethod('startHosting', {
           'questionId': question.id,
@@ -393,6 +519,31 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       return;
     }
 
+    if (_androidFriendDeviceId != null) {
+      final characteristic = QualifiedCharacteristic(
+        serviceId: _serviceUuid,
+        characteristicId: _answerCharacteristicUuid,
+        deviceId: _androidFriendDeviceId!,
+      );
+      try {
+        await _ble.writeCharacteristicWithResponse(
+          characteristic,
+          value: utf8.encode(replyText),
+        );
+        if (!mounted) return;
+        setState(() {
+          _replySent = true;
+          _errorMessage = null;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Failed to send answer. Try again.';
+        });
+      }
+      return;
+    }
+
     try {
       final isSupported = await _peripheral.isSupported;
       if (!isSupported) {
@@ -412,8 +563,11 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       // 0xA2 marks this as an ANSWER broadcast. Byte layout:
       // [0xA2, pairCode, ...answerBytes]
       final answerBytes = utf8.encode(truncated);
-      final manufacturerData =
-          Uint8List.fromList([0xA2, widget.pairCode & 0xFF, ...answerBytes]);
+      final manufacturerData = Uint8List.fromList([
+        0xA2,
+        widget.pairCode & 0xFF,
+        ...answerBytes,
+      ]);
 
       final advertiseData = AdvertiseData(
         manufacturerId: 0xFFFF,
@@ -458,8 +612,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   }
 
   void _showQuestionPicker() {
-    final filteredQuestions =
-        findQuestionsByCategories(widget.selectedCategories);
+    final filteredQuestions = findQuestionsByCategories(
+      widget.selectedCategories,
+    );
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -478,8 +633,10 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                   itemBuilder: (context, index) {
                     final q = filteredQuestions[index];
                     return ListTile(
-                      leading: const Icon(Icons.help_outline_rounded,
-                          color: AppColors.primary),
+                      leading: const Icon(
+                        Icons.help_outline_rounded,
+                        color: AppColors.primary,
+                      ),
                       title: Text(q.question),
                       subtitle: Text(q.hint),
                       onTap: () {
@@ -619,7 +776,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                     onPressed: _showQuestionPicker,
                     icon: const Icon(Icons.help_outline_rounded, size: 18),
                     label: Text(
-                      _myQuestion == null ? 'Pick a Question' : 'Change Question',
+                      _myQuestion == null
+                          ? 'Pick a Question'
+                          : 'Change Question',
                     ),
                   ),
                 ],
@@ -694,8 +853,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                               const SizedBox(
                                 width: 14,
                                 height: 14,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             else
                               Icon(
@@ -711,8 +871,8 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                                 _isComputingReply
                                     ? 'Looking up your answer...'
                                     : (_autoComputedReply != null
-                                        ? 'Found automatically from your data'
-                                        : 'Could not auto-find - type your own'),
+                                          ? 'Found automatically from your data'
+                                          : 'Could not auto-find - type your own'),
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -744,8 +904,11 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                     ] else
                       Row(
                         children: [
-                          const Icon(Icons.check_circle_rounded,
-                              color: AppColors.accent, size: 18),
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: AppColors.accent,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Sent: ${_replyController.text.trim()}',
