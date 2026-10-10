@@ -143,10 +143,11 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
         let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
         let pairCode = androidPairCode(from: manufacturerData)
         let manufacturerHex = manufacturerData?.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "none"
+        let pairCodeLabel = pairCode.map { String($0) } ?? "nil"
 
         discoveredPeripherals[peripheral.identifier.uuidString] = peripheral
 
-        print("BleScanner: found device id=\(peripheral.identifier.uuidString) name=\(name) rssi=\(RSSI) services=\(serviceUUIDs) manufacturer=\(manufacturerHex) pairCode=\(pairCode.map { String($0) } ?? \"nil\")")
+        print("BleScanner: found device id=\(peripheral.identifier.uuidString) name=\(name) rssi=\(RSSI) services=\(serviceUUIDs) manufacturer=\(manufacturerHex) pairCode=\(pairCodeLabel)")
         var result: [String: Any] = [
             "id": peripheral.identifier.uuidString,
             "name": name,

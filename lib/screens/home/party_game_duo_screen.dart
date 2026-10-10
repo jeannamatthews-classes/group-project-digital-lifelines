@@ -54,6 +54,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   // --- iOS-only state ---
   String? _iosFriendDeviceId;
   bool _iosHostingStarted = false;
+  bool _androidHostingStarted = false;
   Timer? _iosPollTimer;
   final Set<String> _iosAttemptedDeviceIds = {};
   String? _androidFriendDeviceId;
@@ -368,8 +369,6 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                 final question = findPartyQuestionById(value.first);
                 // iOS returns question ID 0 until the host approves us.
                 if (question == null || !mounted) return;
-                _androidQuestionPollTimer?.cancel();
-                _androidQuestionPollTimer = null;
                 _androidFriendDeviceId = deviceId;
                 _setFriendQuestion(question);
               } catch (e) {
@@ -378,11 +377,12 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
             }
 
             await readQuestion();
-            if (!mounted || _androidFriendDeviceId == deviceId) return;
-            _androidQuestionPollTimer = Timer.periodic(
-              const Duration(seconds: 3),
-              (_) => readQuestion(),
-            );
+            if (mounted && _androidQuestionPollTimer == null) {
+              _androidQuestionPollTimer = Timer.periodic(
+                const Duration(seconds: 3),
+                (_) => readQuestion(),
+              );
+            }
           },
           onError: (e) {
             print('DUO_DEBUG: GATT connection failed: $e');
@@ -440,9 +440,16 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         manufacturerData: manufacturerData,
       );
 
-      await _channel.invokeMethod('startAndroidGattHosting', {
-        'questionId': _myQuestion!.id,
-      });
+      if (_androidHostingStarted) {
+        await _channel.invokeMethod('updateAndroidGattQuestion', {
+          'questionId': _myQuestion!.id,
+        });
+      } else {
+        await _channel.invokeMethod('startAndroidGattHosting', {
+          'questionId': _myQuestion!.id,
+        });
+        _androidHostingStarted = true;
+      }
       await _peripheral.start(
         advertiseData: advertiseData,
         advertiseSettings: AdvertiseSettings(connectable: true),
