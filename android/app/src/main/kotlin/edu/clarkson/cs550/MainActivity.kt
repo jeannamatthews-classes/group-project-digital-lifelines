@@ -139,10 +139,14 @@ class MainActivity : FlutterActivity() {
 			Log.i(logTag, "Write request from ${device.address} characteristic=${characteristic.uuid} offset=$offset")
 			if (characteristic.uuid == answerUuid && offset == 0) {
 				Log.i(logTag, "Received answer bytes=${value.size} responseNeeded=$responseNeeded")
-				methodChannel?.invokeMethod(
-					"androidAnswerReceived",
-					mapOf("answer" to value.toString(Charsets.UTF_8)),
-				)
+				val answer = value.toString(Charsets.UTF_8)
+				runOnUiThread {
+					Log.i(logTag, "Forwarding answer to Flutter on UI thread")
+					methodChannel?.invokeMethod(
+						"androidAnswerReceived",
+						mapOf("answer" to answer),
+					)
+				}
 			}
 			if (responseNeeded) {
 				gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)

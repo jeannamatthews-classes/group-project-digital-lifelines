@@ -195,34 +195,57 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("BleScanner: failed to connect to \(peripheral.identifier.uuidString): \(String(describing: error))")
-        channel?.invokeMethod("connectionFailed", arguments: ["deviceId": peripheral.identifier.uuidString])
+        notifyConnectionFailed(peripheral.identifier.uuidString, reason: "connect: \(String(describing: error))")
+    }
+
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        let deviceId = peripheral.identifier.uuidString
+        print("BleScanner: disconnected from \(deviceId): \(String(describing: error))")
+        questionCharacteristics.removeValue(forKey: deviceId)
+        answerCharacteristics.removeValue(forKey: deviceId)
+        notifyConnectionFailed(deviceId, reason: "disconnected: \(String(describing: error))")
+    }
+
+    private func notifyConnectionFailed(_ deviceId: String, reason: String) {
+        channel?.invokeMethod("connectionFailed", arguments: ["deviceId": deviceId, "reason": reason])
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error = error {
             print("BleScanner: service discovery error: \(error)")
+            notifyConnectionFailed(peripheral.identifier.uuidString, reason: "service discovery: \(error)")
             return
         }
-        guard let services = peripheral.services else { return }
-        for service in services where service.uuid == serviceUUID {
-            peripheral.discoverCharacteristics([questionCharUUID, answerCharUUID], for: service)
+        guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
+            print("BleScanner: expected service \(serviceUUID) was not found")
+            notifyConnectionFailed(peripheral.identifier.uuidString, reason: "expected service missing")
+            return
         }
+        peripheral.discoverCharacteristics([questionCharUUID, answerCharUUID], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error = error {
             print("BleScanner: characteristic discovery error: \(error)")
+            notifyConnectionFailed(peripheral.identifier.uuidString, reason: "characteristic discovery: \(error)")
             return
         }
         guard let characteristics = service.characteristics else { return }
         let deviceId = peripheral.identifier.uuidString
+        var foundQuestionCharacteristic = false
+        var foundAnswerCharacteristic = false
         for characteristic in characteristics {
             if characteristic.uuid == questionCharUUID {
                 questionCharacteristics[deviceId] = characteristic
+                foundQuestionCharacteristic = true
                 peripheral.readValue(for: characteristic)
             } else if characteristic.uuid == answerCharUUID {
                 answerCharacteristics[deviceId] = characteristic
+                foundAnswerCharacteristic = true
             }
+        }
+        if !foundQuestionCharacteristic || !foundAnswerCharacteristic {
+            notifyConnectionFailed(deviceId, reason: "expected question/answer characteristic missing")
         }
     }
 

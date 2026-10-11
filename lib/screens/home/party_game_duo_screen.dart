@@ -51,6 +51,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
   Timer? _scanRestartTimer;
   Timer? _androidQuestionPollTimer;
+  Timer? _androidReconnectTimer;
   Timer? _replyWriteTimeout;
 
   // --- iOS-only state ---
@@ -132,6 +133,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       _scanSubscription?.cancel();
       _androidConnectionSubscription?.cancel();
       _androidQuestionPollTimer?.cancel();
+      _androidReconnectTimer?.cancel();
       _channel.invokeMethod('stopAndroidGattHosting');
       _scanRestartTimer?.cancel();
       _resumeQuestionTimer?.cancel();
@@ -155,11 +157,13 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         final expectedName = 'BLS${widget.pairCode}';
         print(
           'DUO_DEBUG: iOS discovery id=$deviceId name=$name '
-          'advertisedPairCode=$advertisedPairCode expectedPairCode=${widget.pairCode}',
+          'advertisedPairCode=$advertisedPairCode expectedPairCode=${widget.pairCode} '
+          'alreadyAttempted=${_iosAttemptedDeviceIds.contains(deviceId)}',
         );
         if ((name == expectedName || advertisedPairCode == widget.pairCode) &&
             !_iosAttemptedDeviceIds.contains(deviceId)) {
           _iosAttemptedDeviceIds.add(deviceId);
+          print('DUO_DEBUG: iOS starting connection to $deviceId');
           _channel.invokeMethod('connectAndReadQuestion', {
             'deviceId': deviceId,
           });
@@ -196,6 +200,16 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         });
         break;
 
+      case 'connectionFailed':
+        final data = Map<String, dynamic>.from(call.arguments as Map);
+        final deviceId = data['deviceId'] as String;
+        _iosAttemptedDeviceIds.remove(deviceId);
+        print(
+          'DUO_DEBUG: iOS connection failed for $deviceId '
+          'reason=${data['reason'] ?? 'unknown'}; allowing retry',
+        );
+        break;
+
       case 'connectionRequest':
         final data = Map<String, dynamic>.from(call.arguments as Map);
         final deviceId = data['deviceId'] as String;
@@ -229,8 +243,10 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   }
 
   Future<void> _handleAndroidMethodCall(MethodCall call) async {
+    print('DUO_DEBUG: Android Flutter received method=${call.method}');
     if (!mounted || call.method != 'androidAnswerReceived') return;
     final data = Map<String, dynamic>.from(call.arguments as Map);
+    print('DUO_DEBUG: Android Flutter received answer bytes=${(data['answer'] as String).length}');
     setState(() {
       _friendAnswer = data['answer'] as String;
     });
@@ -296,6 +312,10 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
             // question through the shared GATT service, rather than Android's
             // manufacturer-data packet.
             if (isIosHost) {
+              print(
+                'DUO_DEBUG: matching iOS host id=${device.id} '
+                'name=${device.name} alreadyAttempted=${_androidAttemptedDeviceIds.contains(device.id)}',
+              );
               _connectToIosHost(device.id);
             }
 
@@ -351,6 +371,8 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
     _androidConnectionSubscription?.cancel();
     _androidQuestionPollTimer?.cancel();
+    _androidReconnectTimer?.cancel();
+    print('DUO_DEBUG: connecting to iOS host id=$deviceId');
     _androidConnectionSubscription = _ble
         .connectToDevice(
           id: deviceId,
@@ -363,6 +385,27 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         )
         .listen(
           (state) async {
+            print(
+              'DUO_DEBUG: iOS host id=$deviceId '
+              'connectionState=${state.connectionState}',
+            );
+            if (state.connectionState == DeviceConnectionState.disconnected) {
+              _androidAttemptedDeviceIds.remove(deviceId);
+              _androidQuestionPollTimer?.cancel();
+              _androidQuestionPollTimer = null;
+              if (_androidFriendDeviceId == deviceId) {
+                _androidFriendDeviceId = null;
+                if (mounted) {
+                  setState(() {
+                    _friendQuestion = null;
+                    _replySent = false;
+                    _isSendingReply = false;
+                  });
+                }
+              }
+              print('DUO_DEBUG: cleared iOS host connection state for $deviceId');
+              return;
+            }
             if (state.connectionState != DeviceConnectionState.connected)
               return;
 
@@ -382,11 +425,28 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                 _setFriendQuestion(question);
               } catch (e) {
                 print('DUO_DEBUG: GATT read failed: $e');
+                _androidQuestionPollTimer?.cancel();
+                _androidQuestionPollTimer = null;
+                _androidConnectionSubscription?.cancel();
+                _androidConnectionSubscription = null;
+                _androidReconnectTimer?.cancel();
+                _androidReconnectTimer = Timer(
+                  const Duration(seconds: 2),
+                  () {
+                    if (!mounted) return;
+                    print('DUO_DEBUG: retrying iOS GATT discovery for $deviceId');
+                    _androidReconnectTimer = null;
+                    _androidAttemptedDeviceIds.remove(deviceId);
+                    _connectToIosHost(deviceId);
+                  },
+                );
               }
             }
 
             await readQuestion();
-            if (mounted && _androidQuestionPollTimer == null) {
+            if (mounted &&
+              _androidQuestionPollTimer == null &&
+              _androidReconnectTimer == null) {
               _androidQuestionPollTimer = Timer.periodic(
                 const Duration(seconds: 3),
                 (_) => readQuestion(),
@@ -491,6 +551,10 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
     });
 
     if (Platform.isIOS) {
+      print(
+        'DUO_DEBUG: iOS picked questionId=${question.id} '
+        'hostingStarted=$_iosHostingStarted',
+      );
       if (_iosHostingStarted) {
         await _channel.invokeMethod('updateHostedQuestion', {
           'questionId': question.id,
@@ -502,6 +566,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         });
         _iosHostingStarted = true;
       }
+      print('DUO_DEBUG: iOS host question request completed for ${question.id}');
       if (!mounted) return;
       setState(() {
         _isBroadcastingQuestion = true;
