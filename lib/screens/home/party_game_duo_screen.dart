@@ -43,6 +43,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
   PartyQuestion? _friendQuestion;
   final TextEditingController _replyController = TextEditingController();
   bool _replySent = false;
+  bool _isSendingReply = false;
   bool _isComputingReply = false;
   String? _autoComputedReply;
 
@@ -175,6 +176,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
           if (isNewQuestion) {
             _friendQuestion = question;
             _replySent = false;
+            _isSendingReply = false;
             _replyController.clear();
             _isComputingReply = false;
             _autoComputedReply = null;
@@ -208,11 +210,14 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       case 'answerSent':
         setState(() {
           _replySent = true;
+          _isSendingReply = false;
+          _errorMessage = null;
         });
         break;
 
       case 'answerSendFailed':
         setState(() {
+          _isSendingReply = false;
           _errorMessage = 'Failed to send answer. Try again.';
         });
         break;
@@ -522,10 +527,22 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       final truncated = replyText.length > _maxAnswerLength
           ? replyText.substring(0, _maxAnswerLength)
           : replyText;
-      await _channel.invokeMethod('sendAnswer', {
-        'deviceId': _iosFriendDeviceId,
-        'answer': truncated,
+      setState(() {
+        _isSendingReply = true;
+        _errorMessage = null;
       });
+      try {
+        await _channel.invokeMethod('sendAnswer', {
+          'deviceId': _iosFriendDeviceId,
+          'answer': truncated,
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isSendingReply = false;
+          _errorMessage = 'Could not start sending the answer: $e';
+        });
+      }
       // _replySent gets set once the 'answerSent' callback comes back.
       return;
     }
@@ -912,9 +929,19 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                       ),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
-                        onPressed: _sendReply,
-                        icon: const Icon(Icons.send_rounded, size: 18),
-                        label: const Text('Send Reply'),
+                        onPressed: _isSendingReply ? null : _sendReply,
+                        icon: _isSendingReply
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded, size: 18),
+                        label: Text(
+                          _isSendingReply ? 'Sending...' : 'Send Reply',
+                        ),
                       ),
                     ] else
                       Row(

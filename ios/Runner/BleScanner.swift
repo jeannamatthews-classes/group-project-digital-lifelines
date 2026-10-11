@@ -85,7 +85,10 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
                     result(FlutterError(code: "bad_args", message: "deviceId and answer required", details: nil))
                     return
                 }
-                self.sendAnswer(deviceId: deviceId, answer: answer)
+                guard self.sendAnswer(deviceId: deviceId, answer: answer) else {
+                    result(FlutterError(code: "answer_not_ready", message: "The connected answer characteristic is unavailable", details: nil))
+                    return
+                }
                 result(nil)
             case "acceptConnection":
                 guard let args = call.arguments as? [String: Any],
@@ -256,15 +259,17 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
 
     // MARK: - Sending an answer (joiner side)
 
-    func sendAnswer(deviceId: String, answer: String) {
+    @discardableResult
+    func sendAnswer(deviceId: String, answer: String) -> Bool {
         guard let peripheral = discoveredPeripherals[deviceId],
               let characteristic = answerCharacteristics[deviceId] else {
             print("BleScanner: cannot send answer, missing peripheral/characteristic for \(deviceId)")
-            return
+            return false
         }
         let data = answer.data(using: .utf8) ?? Data()
         print("BleScanner: sending answer bytes=\(data.count) to \(deviceId) characteristic=\(characteristic.uuid)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        return true
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
