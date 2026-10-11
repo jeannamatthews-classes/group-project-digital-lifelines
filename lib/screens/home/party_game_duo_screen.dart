@@ -51,6 +51,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
   Timer? _scanRestartTimer;
   Timer? _androidQuestionPollTimer;
+  Timer? _replyWriteTimeout;
 
   // --- iOS-only state ---
   String? _iosFriendDeviceId;
@@ -137,6 +138,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       _peripheral.stop();
     }
     _replyController.dispose();
+    _replyWriteTimeout?.cancel();
     super.dispose();
   }
 
@@ -208,6 +210,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         break;
 
       case 'answerSent':
+        _replyWriteTimeout?.cancel();
         setState(() {
           _replySent = true;
           _isSendingReply = false;
@@ -216,6 +219,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         break;
 
       case 'answerSendFailed':
+        _replyWriteTimeout?.cancel();
         setState(() {
           _isSendingReply = false;
           _errorMessage = 'Failed to send answer. Try again.';
@@ -531,12 +535,24 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         _isSendingReply = true;
         _errorMessage = null;
       });
+      print('DUO_DEBUG: Send Reply tapped; invoking iOS sendAnswer for $_iosFriendDeviceId');
+      _replyWriteTimeout?.cancel();
+      _replyWriteTimeout = Timer(const Duration(seconds: 12), () {
+        if (!mounted || !_isSendingReply) return;
+        setState(() {
+          _isSendingReply = false;
+          _errorMessage = 'No confirmation from the other phone. Check the connection and try again.';
+        });
+        print('DUO_DEBUG: iOS answer write timed out waiting for CoreBluetooth confirmation');
+      });
       try {
         await _channel.invokeMethod('sendAnswer', {
           'deviceId': _iosFriendDeviceId,
           'answer': truncated,
         });
+        print('DUO_DEBUG: iOS sendAnswer method call returned');
       } catch (e) {
+        _replyWriteTimeout?.cancel();
         if (!mounted) return;
         setState(() {
           _isSendingReply = false;
