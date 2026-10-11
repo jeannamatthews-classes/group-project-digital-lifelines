@@ -17,6 +17,8 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
     // MARK: - Peripheral (hosting as question-asker)
     private var peripheralManager: CBPeripheralManager?
     private var questionCharacteristic: CBMutableCharacteristic?
+
+    
     private var answerCharacteristic: CBMutableCharacteristic?
     private var pendingQuestionId: Int = 0
     private var pendingPairCode: Int = 0
@@ -248,6 +250,7 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
     func rereadQuestion(deviceId: String) {
         guard let peripheral = discoveredPeripherals[deviceId],
               let characteristic = questionCharacteristics[deviceId] else { return }
+        print("BleScanner: rereading question from \(deviceId)")
         peripheral.readValue(for: characteristic)
     }
 
@@ -260,15 +263,16 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
             return
         }
         let data = answer.data(using: .utf8) ?? Data()
+        print("BleScanner: sending answer bytes=\(data.count) to \(deviceId) characteristic=\(characteristic.uuid)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        print("BleScanner: wrote answer '\(answer)' to \(deviceId)")
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
-            print("BleScanner: write error: \(error)")
+            print("BleScanner: write error characteristic=\(characteristic.uuid): \(error)")
             channel?.invokeMethod("answerSendFailed", arguments: ["deviceId": peripheral.identifier.uuidString])
         } else {
+            print("BleScanner: write confirmed characteristic=\(characteristic.uuid) device=\(peripheral.identifier.uuidString)")
             channel?.invokeMethod("answerSent", arguments: ["deviceId": peripheral.identifier.uuidString])
         }
     }

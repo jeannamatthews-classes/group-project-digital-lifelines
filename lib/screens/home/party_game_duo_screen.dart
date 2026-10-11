@@ -452,7 +452,11 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       }
       await _peripheral.start(
         advertiseData: advertiseData,
-        advertiseSettings: AdvertiseSettings(connectable: true),
+        advertiseSettings: AdvertiseSettings(
+          advertiseSet: false,
+          connectable: true,
+          timeout: 0,
+        ),
       );
 
       if (!mounted) return;
@@ -583,7 +587,11 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
 
       await _peripheral.start(
         advertiseData: advertiseData,
-        advertiseSettings: AdvertiseSettings(connectable: false),
+        advertiseSettings: AdvertiseSettings(
+          advertiseSet: false,
+          connectable: false,
+          timeout: 0,
+        ),
       );
 
       if (!mounted) return;
