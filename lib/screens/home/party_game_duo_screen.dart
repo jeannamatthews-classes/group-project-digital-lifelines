@@ -213,7 +213,9 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
       case 'connectionRequest':
         final data = Map<String, dynamic>.from(call.arguments as Map);
         final deviceId = data['deviceId'] as String;
-        _showConnectionRequestDialog(deviceId);
+        // Approval prompt disabled to match Android hosting behavior.
+        _channel.invokeMethod('acceptConnection', {'deviceId': deviceId});
+        // _showConnectionRequestDialog(deviceId);
         break;
 
       case 'answerReceived':
@@ -252,6 +254,7 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
     });
   }
 
+  // ignore: unused_element
   void _showConnectionRequestDialog(String deviceId) {
     showDialog(
       context: context,
@@ -414,6 +417,22 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
               characteristicId: _questionCharacteristicUuid,
               deviceId: deviceId,
             );
+            try {
+              await _ble.discoverAllServices(deviceId);
+              final services = await _ble.getDiscoveredServices(deviceId);
+              final serviceSummary = services
+                  .map(
+                    (service) =>
+                        '${service.id}: ${service.characteristics.map((characteristic) => characteristic.id).join(', ')}',
+                  )
+                  .join('; ');
+              print(
+                'DUO_DEBUG: iOS GATT services after discovery for $deviceId: '
+                '$serviceSummary',
+              );
+            } catch (e) {
+              print('DUO_DEBUG: iOS GATT service discovery failed: $e');
+            }
             Future<void> readQuestion() async {
               try {
                 final value = await _ble.readCharacteristic(characteristic);
@@ -427,6 +446,12 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
                 print('DUO_DEBUG: GATT read failed: $e');
                 _androidQuestionPollTimer?.cancel();
                 _androidQuestionPollTimer = null;
+                try {
+                  await _ble.clearGattCache(deviceId);
+                  print('DUO_DEBUG: cleared Android GATT cache for $deviceId');
+                } catch (cacheError) {
+                  print('DUO_DEBUG: Android GATT cache clear failed: $cacheError');
+                }
                 _androidConnectionSubscription?.cancel();
                 _androidConnectionSubscription = null;
                 _androidReconnectTimer?.cancel();

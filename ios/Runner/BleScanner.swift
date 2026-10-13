@@ -401,15 +401,13 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
             return
         }
 
-        // First time seeing this device (or still waiting on a decision) -
-        // ask the user once, and respond with the pending sentinel until
-        // they decide.
-        if !pendingApprovalIDs.contains(centralId) {
-            pendingApprovalIDs.insert(centralId)
-            channel?.invokeMethod("connectionRequest", arguments: ["deviceId": centralId])
-            print("BleScanner: new connection request from \(centralId), asking for approval")
+        // Approval prompts are disabled to match Android hosting behavior.
+        if !acceptedCentralIDs.contains(centralId) {
+            acceptedCentralIDs.insert(centralId)
+            pendingApprovalIDs.remove(centralId)
+            print("BleScanner: automatically accepted connection from \(centralId)")
         }
-        request.value = Data([0])
+        request.value = Data([UInt8(pendingQuestionId & 0xFF)])
         peripheral.respond(to: request, withResult: .success)
     }
 
