@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_saver/file_saver.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' show join;
-import 'package:sqflite/sqflite.dart';
 
+import '../../../data/timeline_export_archive.dart';
 import '../../../database/db_helper.dart';
 import '../../../theme/app_theme.dart';
 
@@ -23,10 +23,6 @@ class AboutActionsSection extends StatefulWidget {
 }
 
 class _AboutActionsSectionState extends State<AboutActionsSection> {
-  static const MethodChannel _filesChannel = MethodChannel(
-    'digitallifelines/files',
-  );
-
   final DBHelper _dbHelper = DBHelper.instance;
   bool _isBusy = false;
   String? _lastExportPath;
@@ -73,9 +69,9 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
           ),
           const SizedBox(height: 10),
           _ActionButton(
-            onPressed: _isBusy ? null : _exportJsonToPhone,
-            icon: Icons.upload_file_outlined,
-            text: 'Export Data JSON to Phone',
+            onPressed: _isBusy ? null : _exportZipToPhone,
+            icon: Icons.archive_outlined,
+            text: 'Export Data ZIP to Phone',
           ),
           const SizedBox(height: 10),
           _ActionButton(
@@ -161,9 +157,9 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
   Future<void> _backupToFirebase() async {
     final timelines = await _dbHelper.getTimelines();
     if (timelines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No timelines to back up!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No timelines to back up!')));
       return;
     }
 
@@ -182,13 +178,16 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
                 'Choose which ones to back up:',
               ),
               const SizedBox(height: 12),
-              ...List.generate(timelines.length, (i) => CheckboxListTile(
-                title: Text(timelines[i].name),
-                value: selected[i],
-                onChanged: (val) => setStateDialog(() => selected[i] = val!),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              )),
+              ...List.generate(
+                timelines.length,
+                (i) => CheckboxListTile(
+                  title: Text(timelines[i].name),
+                  value: selected[i],
+                  onChanged: (val) => setStateDialog(() => selected[i] = val!),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
             ],
           ),
           actions: [
@@ -213,9 +212,9 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
     ];
 
     if (selectedTimelines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No timelines selected!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No timelines selected!')));
       return;
     }
 
@@ -224,7 +223,11 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
       await _dbHelper.backupSelectedToFirebase(selectedTimelines);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Backed up ${selectedTimelines.length} timeline(s)!')),
+          SnackBar(
+            content: Text(
+              '✅ Backed up ${selectedTimelines.length} timeline(s)!',
+            ),
+          ),
         );
       }
     } finally {

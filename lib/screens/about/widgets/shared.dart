@@ -72,51 +72,41 @@ extension _AboutActionsSectionShared on _AboutActionsSectionState {
     await _showJsonOutput(title: 'Template JSON', jsonText: jsonText);
   }
 
-  // Saves export using platform channel on Android, with local-file fallback.
-  Future<String> _saveExportFile(String jsonText, int timestamp) async {
-    if (Platform.isAndroid) {
-      try {
-        final fileName = 'digital_lifelines_export_$timestamp.json';
-        final saved = await _AboutActionsSectionState._filesChannel
-            .invokeMethod<String>(
-          'saveJsonToDownloads',
-          {'fileName': fileName, 'content': jsonText},
-        );
-        if (saved != null && saved.isNotEmpty) {
-          return saved;
-        }
-      } catch (_) {
-        // Fallback below.
-      }
-    }
-
-    final basePath = await getDatabasesPath();
-    final fallbackDir = Directory(join(basePath, 'digitallifelines'));
-    if (!await fallbackDir.exists()) {
-      await fallbackDir.create(recursive: true);
-    }
-    final fallbackPath = join(
-      fallbackDir.path,
-      'digital_lifelines_export_$timestamp.json',
-    );
-    final fallbackFile = File(fallbackPath);
-    await fallbackFile.writeAsString(jsonText);
-    return fallbackFile.path;
-  }
-
-  // Full export flow: build payload, save file, and show user feedback actions.
-  Future<void> _exportJsonToPhone() async {
+  // Exports each timeline as an individual JSON file inside a ZIP archive.
+  Future<void> _exportZipToPhone() async {
     setState(() {
       _isBusy = true;
     });
 
     try {
       final export = await _dbHelper.exportToJson();
-      final jsonText = const JsonEncoder.withIndent('  ').convert(export);
+      final timelines = export['timelines'] as List<dynamic>;
+      if (timelines.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No timelines to export.')),
+          );
+        }
+        return;
+      }
+
+      final zipBytes = buildTimelineExportArchive(export);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final savedLocation = await _saveExportFile(jsonText, timestamp);
+      final savedLocation = await FileSaver.instance.saveAs(
+        name: 'digital_lifelines_export_$timestamp',
+        bytes: zipBytes,
+        fileExtension: 'zip',
+        mimeType: MimeType.zip,
+      );
 
       if (!mounted) return;
+      if (savedLocation == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Export canceled.')));
+        return;
+      }
+
       setState(() {
         _lastExportPath = savedLocation;
       });
@@ -145,18 +135,6 @@ extension _AboutActionsSectionShared on _AboutActionsSectionState {
                 },
                 child: const Text('Copy Path'),
               ),
-              ElevatedButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: jsonText));
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Export JSON copied to clipboard'),
-                    ),
-                  );
-                },
-                child: const Text('Copy JSON'),
-              ),
             ],
           );
         },
@@ -165,7 +143,7 @@ extension _AboutActionsSectionShared on _AboutActionsSectionState {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to export JSON: $e')));
+      ).showSnackBar(SnackBar(content: Text('Failed to export ZIP: $e')));
     } finally {
       if (mounted) {
         setState(() {

@@ -130,7 +130,7 @@ class _InfoCard extends StatelessWidget {
           Text('How it works', style: TextStyle(fontWeight: FontWeight.w700)),
           SizedBox(height: 6),
           Text(
-            '1) Create lifelines and define fields\n2) Record life points and mark favorites\n3) Export or import JSON for backup and migration',
+            '1) Create lifelines and define fields\n2) Record life points and mark favorites\n3) Export each lifeline as JSON in a ZIP, or import JSON for backup and migration',
             style: TextStyle(color: AppColors.mutedText, height: 1.35),
           ),
         ],
