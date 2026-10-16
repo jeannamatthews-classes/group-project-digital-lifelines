@@ -22,8 +22,6 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
     private var answerCharacteristic: CBMutableCharacteristic?
     private var pendingQuestionId: Int = 0
     private var pendingPairCode: Int = 0
-    private var pendingHostStart: (() -> Void)?
-    private var pendingCentralDisconnectIDs: Set<String> = []
 
     // Devices that have been approved to see the real question/send answers.
     private var acceptedCentralIDs: Set<String> = []
@@ -206,12 +204,6 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
         questionCharacteristics.removeValue(forKey: deviceId)
         answerCharacteristics.removeValue(forKey: deviceId)
         notifyConnectionFailed(deviceId, reason: "disconnected: \(String(describing: error))")
-        if pendingCentralDisconnectIDs.remove(deviceId) != nil && pendingCentralDisconnectIDs.isEmpty {
-            print("BleScanner: previous central connection closed, starting peripheral host")
-            let startHosting = pendingHostStart
-            pendingHostStart = nil
-            startHosting?()
-        }
     }
 
     private func notifyConnectionFailed(_ deviceId: String, reason: String) {
@@ -322,16 +314,6 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
             print("BleScanner: peripheralManager not powered on yet, will retry once it is")
             return
         }
-        let connectedPeripherals = discoveredPeripherals.values.filter { $0.state == .connected }
-        if !connectedPeripherals.isEmpty {
-            pendingCentralDisconnectIDs = Set(connectedPeripherals.map { $0.identifier.uuidString })
-            pendingHostStart = { [weak self] in self?.setupAndAdvertise() }
-            print("BleScanner: disconnecting \(connectedPeripherals.count) central link(s) before hosting")
-            for connectedPeripheral in connectedPeripherals {
-                centralManager?.cancelPeripheralConnection(connectedPeripheral)
-            }
-            return
-        }
         setupAndAdvertise()
     }
 
@@ -386,8 +368,6 @@ class BleScanner: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, CBPe
     }
 
     func stopHosting() {
-        pendingHostStart = nil
-        pendingCentralDisconnectIDs.removeAll()
         peripheralManager?.stopAdvertising()
         peripheralManager?.removeAllServices()
         pendingQuestionId = 0

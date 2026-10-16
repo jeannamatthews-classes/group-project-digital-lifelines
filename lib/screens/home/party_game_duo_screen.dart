@@ -204,14 +204,6 @@ class _PartyGameDuoScreenState extends State<PartyGameDuoScreen> {
         final data = Map<String, dynamic>.from(call.arguments as Map);
         final deviceId = data['deviceId'] as String;
         _iosAttemptedDeviceIds.remove(deviceId);
-        if (_iosFriendDeviceId == deviceId) {
-          setState(() {
-            _iosFriendDeviceId = null;
-            _friendQuestion = null;
-            _replySent = false;
-            _isSendingReply = false;
-          });
-        }
         print(
           'DUO_DEBUG: iOS connection failed for $deviceId '
           'reason=${data['reason'] ?? 'unknown'}; allowing retry',
