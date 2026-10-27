@@ -12,6 +12,8 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../data/export_value.dart';
+
 class DBHelper {
   DBHelper._internal();
 
@@ -578,12 +580,15 @@ Future<void> deleteTimeline(int timelineId) async {
         if (entryId == null) continue;
 
         final values = await getValues(entryId);
-        final valuesByFieldName = <String, String>{};
+        final valuesByFieldName = <String, dynamic>{};
 
         for (final value in values) {
           final fieldName = fieldNamesById[value.fieldId];
           if (fieldName == null) continue;
-          valuesByFieldName[fieldName] = value.value;
+          valuesByFieldName[fieldName] = exportValueForField(
+            fieldName,
+            value.value,
+          );
         }
 
         entryJson.add({
@@ -1029,6 +1034,12 @@ if (existing.isNotEmpty) {
   final cityFieldId = await db.insert('fields', {
     'timeline_id': timelineId, 'name': 'city', 'type': 'text',
   });
+  final latitudeFieldId = await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'latitude', 'type': 'text',
+  });
+  final longitudeFieldId = await db.insert('fields', {
+    'timeline_id': timelineId, 'name': 'longitude', 'type': 'text',
+  });
 
   final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
   if (albums.isEmpty) return 0;
@@ -1058,21 +1069,19 @@ print('Total photos found: ${photos.length}');
       final file = await photo.loadFile();
       if (file == null) continue;
 
-      final latLng = await photo.latlngAsync();
-      double lat = latLng?.latitude ?? 0.0;
-      double lng = latLng?.longitude ?? 0.0;
-
-      // If latlngAsync fails, try originFile
-      if (lat == 0.0 && lng == 0.0) {
+      var latLng = await photo.latlngAsync();
+      if (latLng == null) {
         final originFile = await photo.originFile;
-        if (originFile == null) continue;
-        final latLng2 = await photo.latlngAsync();
-        lat = latLng2?.latitude ?? 0.0;
-        lng = latLng2?.longitude ?? 0.0;
+        if (originFile != null) {
+          latLng = await photo.latlngAsync();
+        }
       }
+      if (latLng == null) continue;
+
+      final lat = latLng.latitude;
+      final lng = latLng.longitude;
 
       print('Photo GPS: $lat, $lng');
-      if (lat == 0.0 && lng == 0.0) continue;
       print('Found GPS: $lat, $lng');
 
   String country = 'Unknown';
@@ -1118,6 +1127,14 @@ print('Total photos found: ${photos.length}');
       await db.rawInsert(
         'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
         [entryId, cityFieldId, city],
+      );
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, latitudeFieldId, lat.toString()],
+      );
+      await db.rawInsert(
+        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+        [entryId, longitudeFieldId, lng.toString()],
       );
       count++;
     } catch (e) {
@@ -1218,9 +1235,9 @@ Future<int> backfillPhotoCoordinates() async {
       if (entriesWithCoords.contains(entryId)) continue;
 
       final latLng = await photo.latlngAsync();
-      double lat = latLng?.latitude ?? 0.0;
-      double lng = latLng?.longitude ?? 0.0;
-      if (lat == 0.0 && lng == 0.0) continue;
+      if (latLng == null) continue;
+      final lat = latLng.latitude;
+      final lng = latLng.longitude;
 
       await db.rawInsert(
         'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',

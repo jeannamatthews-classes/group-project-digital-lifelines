@@ -21,6 +21,10 @@ class _DataDiscoveryConsentScreenState
   final Map<String, bool> _categories = {
     'Photos': false,
     'Location': false,
+    'Books': false,
+    'Movies': false,
+    'Songs & Music': false,
+    'Restaurants': false,
   };
 
   bool get _hasAtLeastOneSelected =>
@@ -29,6 +33,10 @@ class _DataDiscoveryConsentScreenState
   static const Map<String, String> _labelToCategoryKey = {
     'Photos': 'photos',
     'Location': 'location',
+    'Books': 'books',
+    'Movies': 'movies',
+    'Songs & Music': 'music',
+    'Restaurants': 'restaurants',
   };
 
   void _submit() {
@@ -79,7 +87,7 @@ class _DataDiscoveryConsentScreenState
                 color: AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
-child: Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(

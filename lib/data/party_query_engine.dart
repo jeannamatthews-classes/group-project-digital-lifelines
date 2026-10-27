@@ -235,6 +235,57 @@ Future<String?> computeFarthestFromPotsdam({
       : value;
 }
 
+Future<String?> _mostRecentEntryFieldValue({
+  required String timelineName,
+  required String fieldName,
+}) async {
+  final dbHelper = DBHelper.instance;
+  final timelines = await dbHelper.getTimelines();
+  final timeline = timelines
+      .where((t) => t.name.toLowerCase() == timelineName.toLowerCase())
+      .firstOrNull;
+  if (timeline == null || timeline.id == null) return null;
+
+  final fields = await dbHelper.getFields(timeline.id!);
+  final field = fields
+      .where((f) => f.name.toLowerCase() == fieldName.toLowerCase())
+      .firstOrNull;
+  final fieldId = field?.id;
+  if (fieldId == null) return null;
+
+  final entries = await dbHelper.getEntries(timeline.id!);
+  entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  for (final entry in entries) {
+    if (entry.id == null) continue;
+    final values = await dbHelper.getValues(entry.id!);
+    for (final value in values) {
+      if (value.fieldId != fieldId) continue;
+      final text = value.value.trim();
+      if (text.isNotEmpty && text.toLowerCase() != 'unknown') return text;
+    }
+  }
+  return null;
+}
+
+Future<int?> _countEntriesSince(
+  String timelineName, {
+  required bool currentYearOnly,
+}) async {
+  final timelines = await DBHelper.instance.getTimelines();
+  final timeline = timelines
+      .where((t) => t.name.toLowerCase() == timelineName.toLowerCase())
+      .firstOrNull;
+  if (timeline?.id == null) return null;
+
+  final now = DateTime.now();
+  return (await DBHelper.instance.getEntries(timeline!.id!)).where((entry) {
+    final date = DateTime.fromMillisecondsSinceEpoch(entry.createdAt);
+    return currentYearOnly
+        ? date.year == now.year
+        : date.year == now.year && date.month == now.month;
+  }).length;
+}
+
 /// Runs whichever query the given question is tagged with, and returns
 /// the computed answer as text ready to show/send. Returns null if the
 /// question has no queryType, or if nothing could be computed.
@@ -242,49 +293,66 @@ Future<String?> runQueryForQuestion(PartyQuestion question) async {
   final queryType = question.queryType;
   final timeline = question.targetTimeline;
   final field = question.targetField;
-  if (queryType == null || timeline == null || field == null) return null;
+  if (queryType == null || timeline == null) return null;
 
-  switch (queryType) {
-    case 'mostFrequentFieldValue':
-      return computeMostFrequentFieldValue(
-        timelineName: timeline,
-        fieldName: field,
+  final timelines = [timeline, ...question.timelineAliases];
+  if (queryType == 'entryCountForCurrentYear' ||
+      queryType == 'entryCountForCurrentMonth') {
+    for (final timelineName in timelines) {
+      final count = await _countEntriesSince(
+        timelineName,
+        currentYearOnly: queryType == 'entryCountForCurrentYear',
       );
-    case 'distinctFieldValueCount':
-      final count = await computeDistinctFieldValueCount(
-        timelineName: timeline,
-        fieldName: field,
-      );
-      return count?.toString();
-    case 'mostFrequentMonth':
-      return computeMostFrequentMonth(
-        timelineName: timeline,
-        dateFieldName: field,
-      );
-    case 'oldestEntryFieldValue':
-      return computeOldestEntryFieldValue(
-        timelineName: timeline,
-        dateFieldName: 'date',
-        targetField: field,
-      );
-    case 'singleOccurrenceFieldValue':
-      return computeSingleOccurrenceFieldValue(
-        timelineName: timeline,
-        fieldName: field,
-      );
-    case 'mostFrequentFieldValueFiltered':
-      return computeMostFrequentFieldValueFiltered(
-        timelineName: timeline,
-        targetField: field,
-        filterMonth: question.filterMonth,
-        excludeValue: question.excludeValue,
-      );
-    case 'farthestFromPotsdam':
-      return computeFarthestFromPotsdam(
-        timelineName: timeline,
-        targetField: field,
-      );
-    default:
-      return null;
+      if (count != null) return count.toString();
+    }
+    return null;
   }
+
+  if (field == null) return null;
+  final fields = [field, ...question.targetFieldAliases];
+  for (final timelineName in timelines) {
+    for (final fieldName in fields) {
+      final result = switch (queryType) {
+        'mostFrequentFieldValue' => await computeMostFrequentFieldValue(
+          timelineName: timelineName,
+          fieldName: fieldName,
+        ),
+        'distinctFieldValueCount' => (await computeDistinctFieldValueCount(
+          timelineName: timelineName,
+          fieldName: fieldName,
+        ))?.toString(),
+        'mostFrequentMonth' => await computeMostFrequentMonth(
+          timelineName: timelineName,
+          dateFieldName: fieldName,
+        ),
+        'oldestEntryFieldValue' => await computeOldestEntryFieldValue(
+          timelineName: timelineName,
+          dateFieldName: 'date',
+          targetField: fieldName,
+        ),
+        'singleOccurrenceFieldValue' => await computeSingleOccurrenceFieldValue(
+          timelineName: timelineName,
+          fieldName: fieldName,
+        ),
+        'mostFrequentFieldValueFiltered' =>
+          await computeMostFrequentFieldValueFiltered(
+            timelineName: timelineName,
+            targetField: fieldName,
+            filterMonth: question.filterMonth,
+            excludeValue: question.excludeValue,
+          ),
+        'farthestFromPotsdam' => await computeFarthestFromPotsdam(
+          timelineName: timelineName,
+          targetField: fieldName,
+        ),
+        'mostRecentEntryFieldValue' => await _mostRecentEntryFieldValue(
+          timelineName: timelineName,
+          fieldName: fieldName,
+        ),
+        _ => null,
+      };
+      if (result != null) return result;
+    }
+  }
+  return null;
 }
