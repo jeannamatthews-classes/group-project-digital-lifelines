@@ -1,12 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'screens/about/about_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/record/record_screen.dart';
 import 'screens/splash/splash_screen.dart';
+import 'screens/places/places_map_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isWindows || Platform.isLinux) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
   // App entry point.
   runApp(const DigitalLifelinesApp());
 }
@@ -39,6 +47,7 @@ class _RootNavScreenState extends State<RootNavScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     RecordScreen(),
+    PlacesMapScreen(),
     AboutScreen(),
   ];
 
@@ -70,6 +79,11 @@ class _RootNavScreenState extends State<RootNavScreen> {
             icon: Icon(Icons.edit_note_outlined),
             activeIcon: Icon(Icons.edit_note),
             label: 'Record',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map_outlined),
+            activeIcon: Icon(Icons.map),
+            label: 'Places',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),

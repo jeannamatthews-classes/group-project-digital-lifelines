@@ -7,6 +7,7 @@ import '../models/entry.dart';
 import '../models/field.dart';
 import '../models/timeline.dart';
 import '../models/value.dart';
+import '../models/photo_location.dart';
 
 class DBHelper {
   DBHelper._internal();
@@ -167,6 +168,75 @@ class DBHelper {
     );
     return maps.map(EntryValue.fromMap).toList();
   }
+
+  Future<List<PhotoLocation>> getPhotoLocations() async {
+  final timelines = await getTimelines();
+
+  Timeline? placesTimeline;
+
+  for (final timeline in timelines) {
+    if (timeline.name.trim().toLowerCase() == 'my places') {
+      placesTimeline = timeline;
+      break;
+    }
+  }
+
+  if (placesTimeline == null || placesTimeline.id == null) {
+    return [];
+  }
+
+  final timelineId = placesTimeline.id!;
+  final fields = await getFields(timelineId);
+  final entries = await getEntries(timelineId);
+  final fieldNamesById = <int, String>{};
+
+  for (final field in fields) {
+    if (field.id != null) {
+      fieldNamesById[field.id!] = field.name.trim().toLowerCase();
+    }
+  }
+
+  final locations = <PhotoLocation>[];
+
+  for (final entry in entries) {
+    if (entry.id == null) continue;
+
+    final values = await getValues(entry.id!);
+    final valuesByName = <String, String>{};
+
+    for (final value in values) {
+      final fieldName = fieldNamesById[value.fieldId];
+
+      if (fieldName != null) {
+        valuesByName[fieldName] = value.value;
+      }
+    }
+
+    final latitude = double.tryParse(
+      valuesByName['latitude'] ?? '',
+    );
+
+    final longitude = double.tryParse(
+      valuesByName['longitude'] ?? '',
+    );
+
+    if (latitude == null || longitude == null) {
+      continue;
+    }
+
+    locations.add(
+      PhotoLocation(
+        latitude: latitude,
+        longitude: longitude,
+        city: valuesByName['city'],
+        country: valuesByName['country'],
+        date: valuesByName['date'],
+      ),
+    );
+  }
+
+  return locations;
+}
 
   Future<Map<int, String>> getValueMap(int entryId) async {
     final values = await getValues(entryId);
