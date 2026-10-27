@@ -2,7 +2,7 @@ class PartyQuestion {
   final int id;
   final String question;
   final String hint;
-  final String category;
+  final String category; // 'photos', 'location', 'books', or 'movies'
 
   // If set, the app computes the answer automatically from the
   // recipient's own real data instead of asking them to type one in.
@@ -109,135 +109,44 @@ const List<PartyQuestion> partyQuestions = [
     targetField: 'city',
   ),
 
-  // --- Books category ---
+  // --- Books category (placeholder questions for now) ---
   PartyQuestion(
     id: 101,
-    question: 'What book did you add most recently?',
-    hint: 'Filled from your most recent Books timeline entry',
+    question: 'What is the last book you finished reading?',
+    hint: 'Check your Books timeline for the most recent entry',
     category: 'books',
-    queryType: 'mostRecentEntryFieldValue',
-    targetTimeline: 'Books',
-    timelineAliases: ['Goodreads Reviews'],
-    targetField: 'title',
-    targetFieldAliases: ['book'],
   ),
   PartyQuestion(
     id: 102,
-    question: 'How many book entries did you add this year?',
-    hint: 'Counts entries added this year in your Books timeline',
+    question: 'How many books have you read this year?',
+    hint: 'Check your Books timeline entry count',
     category: 'books',
-    queryType: 'entryCountForCurrentYear',
-    targetTimeline: 'Books',
-    timelineAliases: ['Goodreads Reviews'],
   ),
   PartyQuestion(
     id: 103,
-    question: 'Which book appears most often in your Books timeline?',
-    hint: 'Filled from the most common book in your Books timeline',
+    question: 'What genre do you read the most?',
+    hint: 'Check your Books timeline for common genres',
     category: 'books',
-    queryType: 'mostFrequentFieldValue',
-    targetTimeline: 'Books',
-    timelineAliases: ['Goodreads Reviews'],
-    targetField: 'title',
-    targetFieldAliases: ['book'],
   ),
 
-  // --- Movies category ---
+  // --- Movies category (placeholder questions for now) ---
   PartyQuestion(
     id: 201,
-    question: 'What movie did you add most recently?',
-    hint: 'Filled from your most recent Movies timeline entry',
+    question: 'What is the last movie you watched?',
+    hint: 'Check your Movies timeline for the most recent entry',
     category: 'movies',
-    queryType: 'mostRecentEntryFieldValue',
-    targetTimeline: 'Movies',
-    targetField: 'title',
-    targetFieldAliases: ['movie', 'film'],
   ),
   PartyQuestion(
     id: 202,
     question: 'What is your most-watched genre?',
-    hint: 'Filled from the most common genre in your Movies timeline',
+    hint: 'Check your Movies timeline for common genres',
     category: 'movies',
-    queryType: 'mostFrequentFieldValue',
-    targetTimeline: 'Movies',
-    targetField: 'genre',
   ),
   PartyQuestion(
     id: 203,
-    question: 'How many movie entries did you add this month?',
-    hint: 'Counts entries added this month in your Movies timeline',
+    question: 'How many movies have you watched this month?',
+    hint: 'Check your Movies timeline entry count',
     category: 'movies',
-    queryType: 'entryCountForCurrentMonth',
-    targetTimeline: 'Movies',
-  ),
-
-  // --- Music category ---
-  PartyQuestion(
-    id: 301,
-    question: 'Which song appears most often in your Music timeline?',
-    hint: 'Filled from the most frequent song in your Music timeline',
-    category: 'music',
-    queryType: 'mostFrequentFieldValue',
-    targetTimeline: 'Music',
-    timelineAliases: ['Songs', 'Spotify Streaming History'],
-    targetField: 'song',
-    targetFieldAliases: ['track', 'track name', 'song title'],
-  ),
-  PartyQuestion(
-    id: 302,
-    question: 'Which artist appears most often in your Music timeline?',
-    hint: 'Filled from the most frequent artist in your Music timeline',
-    category: 'music',
-    queryType: 'mostFrequentFieldValue',
-    targetTimeline: 'Music',
-    timelineAliases: ['Songs', 'Spotify Streaming History'],
-    targetField: 'artist',
-  ),
-  PartyQuestion(
-    id: 303,
-    question: 'What song did you add most recently?',
-    hint: 'Filled from your most recent Music timeline entry',
-    category: 'music',
-    queryType: 'mostRecentEntryFieldValue',
-    targetTimeline: 'Music',
-    timelineAliases: ['Songs', 'Spotify Streaming History'],
-    targetField: 'song',
-    targetFieldAliases: ['track', 'track name', 'song title'],
-  ),
-
-  // --- Restaurants category ---
-  PartyQuestion(
-    id: 401,
-    question: 'Which restaurant have you visited most often?',
-    hint: 'Filled from the most frequent restaurant in your timeline',
-    category: 'restaurants',
-    queryType: 'mostFrequentFieldValue',
-    targetTimeline: 'Restaurants',
-    timelineAliases: ['Restaurant Visits'],
-    targetField: 'restaurant',
-    targetFieldAliases: ['name', 'place', 'restaurant name', 'venue'],
-  ),
-  PartyQuestion(
-    id: 402,
-    question: 'How many different restaurants have you visited?',
-    hint: 'Counts the distinct restaurants in your timeline',
-    category: 'restaurants',
-    queryType: 'distinctFieldValueCount',
-    targetTimeline: 'Restaurants',
-    timelineAliases: ['Restaurant Visits'],
-    targetField: 'restaurant',
-    targetFieldAliases: ['name', 'place', 'restaurant name', 'venue'],
-  ),
-  PartyQuestion(
-    id: 403,
-    question: 'Which restaurant did you visit most recently?',
-    hint: 'Filled from your most recent Restaurants timeline entry',
-    category: 'restaurants',
-    queryType: 'mostRecentEntryFieldValue',
-    targetTimeline: 'Restaurants',
-    timelineAliases: ['Restaurant Visits'],
-    targetField: 'restaurant',
-    targetFieldAliases: ['name', 'place', 'restaurant name', 'venue'],
   ),
 ];
 
@@ -252,5 +161,7 @@ PartyQuestion? findPartyQuestionById(int id) {
 /// categories. Picking multiple categories shows the combined pool.
 List<PartyQuestion> findQuestionsByCategories(Set<String> categories) {
   if (categories.isEmpty) return [];
-  return partyQuestions.where((q) => categories.contains(q.category)).toList();
+  return partyQuestions
+      .where((q) => categories.contains(q.category))
+      .toList();
 }
