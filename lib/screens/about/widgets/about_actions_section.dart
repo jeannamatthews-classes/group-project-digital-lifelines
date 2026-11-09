@@ -5,6 +5,7 @@ import 'package:file_saver/file_saver.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 import '../../../data/timeline_export_archive.dart';
 import '../../../database/db_helper.dart';
@@ -141,17 +142,83 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
   }
 
   Future<void> _importFromPhotos() async {
+    // Shown on every tap so the user can review or change photo access first.
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (_) => const _PhotoImportDialog(),
+    );
+    if (proceed != true || !mounted) return;
+
     setState(() => _isBusy = true);
     try {
-      final count = await _dbHelper.importFromPhotos();
-      if (mounted) {
+      final result = await _dbHelper.importFromPhotos();
+      if (!mounted) return;
+      if (!result.permissionGranted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Imported $count places from photos!')),
+          SnackBar(
+            content: const Text(
+              'Photo access is off, so no locations could be read.',
+            ),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: PhotoManager.openSetting,
+            ),
+          ),
         );
+        return;
       }
+      await _showPhotoImportResult(result);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
+  }
+
+  Future<void> _showPhotoImportResult(PhotoImportResult result) {
+    final scanned = result.photosScanned;
+    final withLocation = result.photosWithLocation;
+    final photoWord = scanned == 1 ? 'photo' : 'photos';
+
+    final String title;
+    final String message;
+    if (scanned == 0) {
+      title = 'No photos to scan';
+      message = result.limitedAccess
+          ? 'No photos are shared with the app yet. Tap "Import Places from '
+                'Photos" again and use "Choose photos" to pick some.'
+          : 'We couldn\'t find any photos on this device.';
+    } else if (withLocation == 0) {
+      title = '🎉 Nice work!';
+      message =
+          'None of your $scanned $photoWord have location metadata, '
+          'so they don\'t reveal where they were taken. Your locations are '
+          'staying private!';
+    } else {
+      title = 'Scan complete';
+      final added = result.placesAdded;
+      final addedText = added == 0
+          ? 'They were all already in your My Places timeline.'
+          : 'Added $added new ${added == 1 ? 'place' : 'places'} to your '
+                'My Places timeline.';
+      message =
+          '$withLocation of your $scanned $photoWord '
+          '${withLocation == 1 ? 'has' : 'have'} location metadata, which can '
+          'reveal where ${withLocation == 1 ? 'it was' : 'they were'} '
+          'taken.\n\n$addedText';
+    }
+
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _backupToFirebase() async {
@@ -233,5 +300,138 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
+  }
+}
+
+/// Explains what the photo import reads and lets the user review or change
+/// photo access before importing. Refreshes when the user comes back from
+/// the Settings app.
+class _PhotoImportDialog extends StatefulWidget {
+  const _PhotoImportDialog();
+
+  @override
+  State<_PhotoImportDialog> createState() => _PhotoImportDialogState();
+}
+
+class _PhotoImportDialogState extends State<_PhotoImportDialog>
+    with WidgetsBindingObserver {
+  PermissionState? _state;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final state = await PhotoManager.getPermissionState(
+      requestOption: DBHelper.photoPermissionOption,
+    );
+    if (mounted) setState(() => _state = state);
+  }
+
+  Future<void> _choosePhotos() async {
+    await PhotoManager.presentLimited(type: RequestType.image);
+    await _refresh();
+  }
+
+  String get _statusText {
+    switch (_state) {
+      case null:
+        return 'Checking photo access…';
+      case PermissionState.authorized:
+        return 'Full access: all photos will be scanned.';
+      case PermissionState.limited:
+        return 'Limited access: only the photos you selected will be scanned.';
+      case PermissionState.notDetermined:
+        return 'You\'ll be asked to allow photo access next.';
+      case PermissionState.denied:
+      case PermissionState.restricted:
+        return 'Photo access is off. Turn it on in Settings to import.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = _state;
+    final blocked =
+        state == PermissionState.denied || state == PermissionState.restricted;
+
+    return AlertDialog(
+      title: const Text('Import Places from Photos'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'We read only the location and date saved in your photos to build '
+            'your My Places timeline. Your photos themselves are never '
+            'imported, copied, or uploaded.',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                blocked ? Icons.block : Icons.photo_library_outlined,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _statusText,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+          if (state != null && state != PermissionState.notDetermined) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                if (state == PermissionState.limited)
+                  TextButton.icon(
+                    onPressed: _choosePhotos,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    label: const Text('Choose photos'),
+                  ),
+                TextButton.icon(
+                  onPressed: PhotoManager.openSetting,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Change access'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: state == null || blocked
+              ? null
+              : () => Navigator.pop(context, true),
+          child: Text(
+            state == PermissionState.notDetermined ? 'Continue' : 'Import',
+          ),
+        ),
+      ],
+    );
   }
 }

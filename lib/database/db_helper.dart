@@ -10,7 +10,6 @@ import '../models/value.dart';
 import 'firebase_helper.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../data/export_value.dart';
 
@@ -988,103 +987,124 @@ Future<void> deleteTimeline(int timelineId) async {
   }
 
 
-Future<int> importFromPhotos() async {
-  // Request location permission so iOS geocoding service can be used
-  LocationPermission locationPermission = await Geolocator.checkPermission();
-  if (locationPermission == LocationPermission.denied) {
-    locationPermission = await Geolocator.requestPermission();
-  }
-  print('Location permission status: $locationPermission');
-
-  final Map<String, Map<String, String>> geocodeCache = {};
-  final permission = await PhotoManager.requestPermissionExtend(
-  requestOption: const PermissionRequestOption(
-    androidPermission: AndroidPermission(
-      type: RequestType.image,
-      mediaLocation: true,
-    ),
+/// Photo library permission options shared by the photo import and backfill.
+/// `mediaLocation` lets Android read the GPS data stored in each photo.
+static const PermissionRequestOption photoPermissionOption =
+    PermissionRequestOption(
+  androidPermission: AndroidPermission(
+    type: RequestType.image,
+    mediaLocation: true,
   ),
 );
-  if (!permission.isAuth) {
+
+/// Scans the photos the app can see and adds their locations to the
+/// "My Places" timeline. Only the GPS coordinates and the date of each photo
+/// are read; the photos themselves are never copied or stored.
+///
+/// Safe to run again: photos that were already imported are skipped, so new
+/// photos (or newly shared ones under limited access) get added.
+///
+/// Location services are NOT needed here. The coordinates come from the
+/// photo's own metadata, and turning coordinates into a city name uses the
+/// system geocoder, which works without location permission.
+Future<PhotoImportResult> importFromPhotos() async {
+  final permission = await PhotoManager.requestPermissionExtend(
+    requestOption: photoPermissionOption,
+  );
+  if (!permission.hasAccess) {
     print('Photo permission denied!');
-    return 0;
+    return const PhotoImportResult(permissionGranted: false);
   }
+
+  // The "all photos" album holds every photo the app can see (only the
+  // selected ones under limited access), so no need to walk every album.
+  final albums = await PhotoManager.getAssetPathList(
+    type: RequestType.image,
+    onlyAll: true,
+  );
+  final List<AssetEntity> photos = [];
+  if (albums.isNotEmpty) {
+    final album = albums.first;
+    final total = await album.assetCountAsync;
+    const pageSize = 500;
+    for (var start = 0; start < total; start += pageSize) {
+      photos.addAll(
+        await album.getAssetListRange(start: start, end: start + pageSize),
+      );
+    }
+  }
+  print('Photos found: ${photos.length}');
 
   final db = await database;
 
-  // Check if My Places already exists
-final existing = await db.query(
-  'timelines',
-  where: 'name = ?',
-  whereArgs: ['My Places'],
-);
-if (existing.isNotEmpty) {
-  print('My Places already exists!');
-  return 0;
-}
-
-  final timelineId = await db.insert('timelines', {'name': 'My Places'});
-
-  final dateFieldId = await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'date', 'type': 'text',
-  });
-  final countryFieldId = await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'country', 'type': 'text',
-  });
-  final cityFieldId = await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'city', 'type': 'text',
-  });
-  final latitudeFieldId = await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'latitude', 'type': 'text',
-  });
-  final longitudeFieldId = await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'longitude', 'type': 'text',
-  });
-
-  final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
-  if (albums.isEmpty) return 0;
-
-  //final photos = await albums.first.getAssetListRange(start: 0, end: 500);
-
-
-  // Search ALL albums
-final List<AssetEntity> photos = [];
-for (final album in albums) {
-  final assets = await album.getAssetListRange(start: 0, end: 1000);
-  for (final asset in assets) {
-    if (!photos.any((p) => p.id == asset.id)) {
-      photos.add(asset);
+  // Reuse "My Places" if it exists and remember which photos are already in
+  // it (matched by the photo's exact creation time).
+  int? timelineId;
+  final Map<String, int> fieldIds = {};
+  final Set<int> importedTimestamps = {};
+  final existing = await db.query(
+    'timelines',
+    where: 'name = ?',
+    whereArgs: ['My Places'],
+    limit: 1,
+  );
+  if (existing.isNotEmpty) {
+    timelineId = existing.first['id'] as int;
+    final fields = await db.query(
+      'fields',
+      where: 'timeline_id = ?',
+      whereArgs: [timelineId],
+    );
+    for (final f in fields) {
+      fieldIds[f['name'] as String] = f['id'] as int;
+    }
+    final entries = await db.query(
+      'entries',
+      columns: ['created_at'],
+      where: 'timeline_id = ?',
+      whereArgs: [timelineId],
+    );
+    for (final e in entries) {
+      final createdAt = e['created_at'];
+      if (createdAt is int) importedTimestamps.add(createdAt);
     }
   }
-}
-print('Total photos found: ${photos.length}');
 
+  // Creates the timeline and any missing fields the first time a new place
+  // is found, so an import with no results doesn't leave an empty timeline.
+  Future<int> ensureTimeline() async {
+    timelineId ??= await db.insert('timelines', {'name': 'My Places'});
+    for (final name in ['date', 'country', 'city', 'latitude', 'longitude']) {
+      fieldIds[name] ??= await db.insert('fields', {
+        'timeline_id': timelineId,
+        'name': name,
+        'type': 'text',
+      });
+    }
+    return timelineId!;
+  }
 
-  print('Photos found: ${photos.length}');
-  int count = 0;
+  final Map<String, Map<String, String>> geocodeCache = {};
+  int withLocation = 0;
+  int added = 0;
 
   for (final photo in photos) {
     try {
-      // Get actual file to read EXIF data
-      final file = await photo.loadFile();
-      if (file == null) continue;
-
-      var latLng = await photo.latlngAsync();
-      if (latLng == null) {
-        final originFile = await photo.originFile;
-        if (originFile != null) {
-          latLng = await photo.latlngAsync();
-        }
+      final latLng = await photo.latlngAsync();
+      // Some Android versions report 0,0 instead of "no location".
+      if (latLng == null ||
+          (latLng.latitude == 0 && latLng.longitude == 0)) {
+        continue;
       }
-      if (latLng == null) continue;
+      withLocation++;
+
+      final createdAt = photo.createDateTime.millisecondsSinceEpoch;
+      if (importedTimestamps.contains(createdAt)) continue;
 
       final lat = latLng.latitude;
       final lng = latLng.longitude;
 
-      print('Photo GPS: $lat, $lng');
-      print('Found GPS: $lat, $lng');
-
-  String country = 'Unknown';
+      String country = 'Unknown';
       String city = 'Unknown';
       // Round coordinates to ~1km precision to group nearby photos together
       final cacheKey = '${lat.toStringAsFixed(2)},${lng.toStringAsFixed(2)}';
@@ -1110,41 +1130,43 @@ print('Total photos found: ${photos.length}');
       }
       final date = photo.createDateTime.toIso8601String().split('T').first;
 
+      final tId = await ensureTimeline();
       final entryId = await db.insert('entries', {
-        'timeline_id': timelineId,
-        'created_at': photo.createDateTime.millisecondsSinceEpoch,
+        'timeline_id': tId,
+        'created_at': createdAt,
         'is_favorite': 0,
       });
 
-      await db.rawInsert(
-        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-        [entryId, dateFieldId, date],
-      );
-      await db.rawInsert(
-        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-        [entryId, countryFieldId, country],
-      );
-      await db.rawInsert(
-        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-        [entryId, cityFieldId, city],
-      );
-      await db.rawInsert(
-        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-        [entryId, latitudeFieldId, lat.toString()],
-      );
-      await db.rawInsert(
-        'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
-        [entryId, longitudeFieldId, lng.toString()],
-      );
-      count++;
+      final values = {
+        'date': date,
+        'country': country,
+        'city': city,
+        'latitude': lat.toString(),
+        'longitude': lng.toString(),
+      };
+      for (final v in values.entries) {
+        await db.rawInsert(
+          'INSERT INTO "values" (entry_id, field_id, value) VALUES (?, ?, ?)',
+          [entryId, fieldIds[v.key], v.value],
+        );
+      }
+      importedTimestamps.add(createdAt);
+      added++;
     } catch (e) {
       print('Error processing photo: $e');
       continue;
     }
   }
 
-  print('Imported $count places from photos!');
-  return count;
+  print('Scanned ${photos.length} photos, $withLocation with location, '
+      'added $added new places.');
+  return PhotoImportResult(
+    permissionGranted: true,
+    limitedAccess: permission == PermissionState.limited,
+    photosScanned: photos.length,
+    photosWithLocation: withLocation,
+    placesAdded: added,
+  );
 }
 
 /// Adds latitude/longitude to existing "My Places" entries that were
@@ -1202,14 +1224,9 @@ Future<int> backfillPhotoCoordinates() async {
       existingCoordValues.map((v) => v['entry_id'] as int).toSet();
 
   final permission = await PhotoManager.requestPermissionExtend(
-    requestOption: const PermissionRequestOption(
-      androidPermission: AndroidPermission(
-        type: RequestType.image,
-        mediaLocation: true,
-      ),
-    ),
+    requestOption: photoPermissionOption,
   );
-  if (!permission.isAuth) {
+  if (!permission.hasAccess) {
     print('Photo permission denied during backfill!');
     return 0;
   }
@@ -1278,10 +1295,7 @@ class ImportResult {
     this.updatedEntries = 0,
   });
 
-
-  
 }
-
 
 
 class _EntryDuplicateIndex {
@@ -1291,5 +1305,22 @@ class _EntryDuplicateIndex {
   _EntryDuplicateIndex({
     required this.entryIdByName,
     required this.entryIdBySignature,
+  });
+}
+
+/// Outcome of [DBHelper.importFromPhotos], used to tell the user what was found.
+class PhotoImportResult {
+  final bool permissionGranted;
+  final bool limitedAccess;
+  final int photosScanned;
+  final int photosWithLocation;
+  final int placesAdded;
+
+  const PhotoImportResult({
+    required this.permissionGranted,
+    this.limitedAccess = false,
+    this.photosScanned = 0,
+    this.photosWithLocation = 0,
+    this.placesAdded = 0,
   });
 }
