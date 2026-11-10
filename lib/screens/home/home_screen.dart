@@ -236,15 +236,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                   favoriteEntries: 0,
                                 );
 
-                            final isSpotify = timeline.name
-                                .toLowerCase()
-                                .contains('spotify');
-                            final isMusic = timeline.name
-                                .toLowerCase()
-                                .contains('music');
-                            final isGoodreads = timeline.name
-                                .toLowerCase()
-                                .contains('goodreads');
+                            final name = timeline.name.toLowerCase();
+                            final isSpotify = name.contains('spotify');
+                            final isMusic =
+                                name.contains('music') || name.contains('song');
+                            final isGoodreads = name.contains('goodreads');
+                            final isBooks = name.contains('book');
+                            final isPlaces = name.contains('place');
+                            final isRestaurants = name.contains('restaurant');
+                            final timelineColor = isSpotify
+                                ? const Color(0xFF1DB954)
+                                : (isGoodreads || isBooks
+                                      ? const Color(0xFF8D6E63)
+                                      : (isMusic
+                                            ? const Color(0xFFE91E63)
+                                            : (isPlaces
+                                                  ? const Color(0xFF2E9D72)
+                                                  : (isRestaurants
+                                                        ? const Color(
+                                                            0xFFE58A32,
+                                                          )
+                                                        : AppColors.primary))));
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 16),
@@ -286,41 +298,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                               gradient: LinearGradient(
                                                 colors: isSpotify
                                                     ? [
-                                                        const Color(
-                                                          0xFF1DB954,
-                                                        ),
-                                                        const Color(
-                                                          0xFF191414,
-                                                        ),
+                                                        const Color(0xFF1DB954),
+                                                        const Color(0xFF191414),
                                                       ]
-                                                    : (isGoodreads
+                                                    : (isMusic
                                                           ? [
+                                                              timelineColor,
                                                               const Color(
-                                                                0xFF8D6E63,
-                                                              ),
-                                                              const Color(
-                                                                0xFF4E342E,
+                                                                0xFF9C27B0,
                                                               ),
                                                             ]
-                                                          : (isMusic
-                                                                ? [
-                                                                    const Color(
-                                                                      0xFFE91E63,
-                                                                    ),
-                                                                    const Color(
-                                                                      0xFF9C27B0,
-                                                                    ),
-                                                                  ]
-                                                                : [
-                                                                    AppColors
-                                                                        .primary,
-                                                                    AppColors
-                                                                        .primary
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.7,
-                                                                        ),
-                                                                  ])),
+                                                          : [
+                                                              timelineColor,
+                                                              timelineColor
+                                                                  .withValues(
+                                                                    alpha: 0.7,
+                                                                  ),
+                                                            ]),
                                                 begin: Alignment.topLeft,
                                                 end: Alignment.bottomRight,
                                               ),
@@ -328,24 +322,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   BorderRadius.circular(18),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color:
-                                                      (isSpotify
-                                                              ? const Color(
-                                                                  0xFF1DB954,
-                                                                )
-                                                              : (isGoodreads
-                                                                    ? const Color(
-                                                                        0xFF8D6E63,
-                                                                      )
-                                                                    : (isMusic
-                                                                          ? const Color(
-                                                                              0xFFE91E63,
-                                                                            )
-                                                                          : AppColors
-                                                                                .primary)))
-                                                          .withValues(
-                                                            alpha: 0.3,
-                                                          ),
+                                                  color: timelineColor
+                                                      .withValues(alpha: 0.3),
                                                   blurRadius: 10,
                                                   offset: const Offset(0, 4),
                                                 ),
@@ -368,8 +346,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     isMusic
                                                         ? Icons
                                                               .music_note_rounded
-                                                        : Icons
-                                                              .menu_book_rounded,
+                                                        : (isPlaces
+                                                              ? Icons
+                                                                    .location_on_rounded
+                                                              : (isRestaurants
+                                                                    ? Icons
+                                                                          .restaurant_rounded
+                                                                    : Icons
+                                                                          .menu_book_rounded)),
                                                     color: Colors.white,
                                                     size: 26,
                                                   ),
@@ -384,10 +368,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   timeline.name,
                                                   style: const TextStyle(
                                                     fontSize: 18,
-                                                    fontWeight:
-                                                        FontWeight.w800,
-                                                    color:
-                                                        AppColors.appBarText,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: AppColors.appBarText,
                                                     letterSpacing: -0.3,
                                                   ),
                                                 ),
@@ -495,8 +477,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     Icon(
                                                       Icons.edit_rounded,
                                                       size: 18,
-                                                      color: AppColors
-                                                          .mutedText,
+                                                      color:
+                                                          AppColors.mutedText,
                                                     ),
                                                     SizedBox(width: 8),
                                                     Text(

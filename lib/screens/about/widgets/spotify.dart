@@ -275,10 +275,10 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
         'created_at': createdAt,
         'is_favorite': false,
         'values': {
-          'track': trackName,
-          'artist': artistName,
-          'end_time': endTime,
-          'ms_played': msPlayed.toString(),
+          'Track': trackName,
+          'Artist': artistName,
+          'End_Time': endTime,
+          'Ms_Played': msPlayed.toString(),
         },
       });
     }
@@ -295,12 +295,12 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
       'type': 'spotify_import',
       'timelines': [
         {
-          'name': 'Spotify Streaming History',
+          'name': 'Songs',
           'fields': [
-            {'name': 'track', 'type': 'text'},
-            {'name': 'artist', 'type': 'text'},
-            {'name': 'end_time', 'type': 'text'},
-            {'name': 'ms_played', 'type': 'number'},
+            {'name': 'Track', 'type': 'text'},
+            {'name': 'Artist', 'type': 'text'},
+            {'name': 'End_Time', 'type': 'text'},
+            {'name': 'Ms_Played', 'type': 'number'},
           ],
           'entries': entries,
         },

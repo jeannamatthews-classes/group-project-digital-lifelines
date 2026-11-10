@@ -196,9 +196,9 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
       title = 'Scan complete';
       final added = result.placesAdded;
       final addedText = added == 0
-          ? 'They were all already in your My Places timeline.'
+          ? 'They were all already in your Places timeline.'
           : 'Added $added new ${added == 1 ? 'place' : 'places'} to your '
-                'My Places timeline.';
+                'Places timeline.';
       message =
           '$withLocation of your $scanned $photoWord '
           '${withLocation == 1 ? 'has' : 'have'} location metadata, which can '
@@ -377,7 +377,7 @@ class _PhotoImportDialogState extends State<_PhotoImportDialog>
         children: [
           const Text(
             'We read only the location and date saved in your photos to build '
-            'your My Places timeline. Your photos themselves are never '
+            'your Places timeline. Your photos themselves are never '
             'imported, copied, or uploaded.',
           ),
           const SizedBox(height: 12),

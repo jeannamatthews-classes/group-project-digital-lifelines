@@ -33,7 +33,8 @@ class EntryCard extends StatelessWidget {
         : (valuesByFieldId[titleField.id] ?? '').trim();
 
     final isSpotify = (timelineName ?? '').toLowerCase().contains('spotify');
-    final isMusic = (timelineName ?? '').toLowerCase().contains('music');
+    final isMusic = (timelineName ?? '').toLowerCase().contains('music') ||
+        (timelineName ?? '').toLowerCase().contains('song');
     final isGoodreads = (timelineName ?? '').toLowerCase().contains(
       'goodreads',
     );

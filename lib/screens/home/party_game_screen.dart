@@ -42,7 +42,7 @@ class PartyGameScreen extends StatelessWidget {
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Pick a question, find your own answer in My Places, then ask a friend the same question!',
+                    'Pick a question, find your own answer in Places, then ask a friend the same question!',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

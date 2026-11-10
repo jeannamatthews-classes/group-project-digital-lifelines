@@ -265,7 +265,7 @@ List<_GroupedEntry> get _groupedByYear {
   return result;
 }
 
-  // Check if this timeline has date/country/city fields (i.e. My Places)
+  // Check if this timeline has date/country/city fields (i.e. Places)
   bool get _isPlacesTimeline {
     final names = _fields.map((f) => f.name.toLowerCase()).toSet();
     return names.contains('date') &&
@@ -500,7 +500,7 @@ List<_GroupedEntry> get _groupedByYear {
                   ),
                 ),
 
-                // View mode toggle — only show for My Places timeline
+                // View mode toggle — only show for Places timeline
                 if (_isPlacesTimeline) ...[
                   const SizedBox(height: 8),
                   Padding(

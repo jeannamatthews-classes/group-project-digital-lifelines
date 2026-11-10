@@ -12,6 +12,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:geocoding/geocoding.dart';
 
 import '../data/export_value.dart';
+import '../data/timeline_name.dart';
 
 class DBHelper {
   DBHelper._internal();
@@ -20,46 +21,46 @@ class DBHelper {
 
   static const defaultTimelineTemplates = <Map<String, dynamic>>[
     {
-      'name': 'Spotify Streaming History',
-      'fields': [
-        {'name': 'track', 'type': 'text'},
-        {'name': 'artist', 'type': 'text'},
-        {'name': 'end_time', 'type': 'text'},
-        {'name': 'ms_played', 'type': 'number'},
-      ],
-      'entries': <Map<String, dynamic>>[],
-    },
-    {
-      'name': 'Goodreads Reviews',
-      'fields': [
-        {'name': 'book', 'type': 'text'},
-        {'name': 'rating', 'type': 'text'},
-        {'name': 'read_status', 'type': 'text'},
-        {'name': 'review', 'type': 'text'},
-        {'name': 'includes_spoilers', 'type': 'text'},
-        {'name': 'notes', 'type': 'text'},
-        {'name': 'updated_at', 'type': 'text'},
-      ],
-      'entries': <Map<String, dynamic>>[],
-    },
-    {
-      'name': 'My Places',
-      'fields': [
-        {'name': 'date', 'type': 'text'},
-        {'name': 'country', 'type': 'text'},
-        {'name': 'city', 'type': 'text'},
-        {'name': 'latitude', 'type': 'text'},
-        {'name': 'longitude', 'type': 'text'},
-      ],
-      'entries': <Map<String, dynamic>>[],
-    },
-    {
       'name': 'Favorite Restaurants',
       'fields': [
         {'name': 'Name', 'type': 'text'},
         {'name': 'Address', 'type': 'text'},
         {'name': 'Rating', 'type': 'number'},
         {'name': 'Best Meal', 'type': 'text'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'Books',
+      'fields': [
+        {'name': 'Book', 'type': 'text'},
+        {'name': 'Rating', 'type': 'text'},
+        {'name': 'Read_Status', 'type': 'text'},
+        {'name': 'Review', 'type': 'text'},
+        {'name': 'Includes_Spoilers', 'type': 'text'},
+        {'name': 'Notes', 'type': 'text'},
+        {'name': 'Updated_At', 'type': 'text'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'Songs',
+      'fields': [
+        {'name': 'Track', 'type': 'text'},
+        {'name': 'Artist', 'type': 'text'},
+        {'name': 'End_Time', 'type': 'text'},
+        {'name': 'Ms_Played', 'type': 'number'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'Places',
+      'fields': [
+        {'name': 'Date', 'type': 'text'},
+        {'name': 'Country', 'type': 'text'},
+        {'name': 'City', 'type': 'text'},
+        {'name': 'Latitude', 'type': 'text'},
+        {'name': 'Longitude', 'type': 'text'},
       ],
       'entries': <Map<String, dynamic>>[],
     },
@@ -82,7 +83,7 @@ class DBHelper {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
     await db.execute('''
           CREATE TABLE timelines (
@@ -141,7 +142,8 @@ class DBHelper {
             print('Column may already exist: $e');
           }
         }
-        if (oldVersion < 5) {
+        if (oldVersion < 6) {
+          await _migrateLegacyTimelineNames(db);
           await _seedDefaultTimelines(db);
         }
       },
@@ -157,7 +159,7 @@ class DBHelper {
         .map((row) => _normalizeKey((row['name'] ?? '').toString()))
         .toSet();
 
-    for (final template in defaultTimelineTemplates) {
+    for (final template in defaultTimelineTemplates.reversed) {
       final name = template['name'] as String;
       if (!existingNames.add(_normalizeKey(name))) continue;
 
@@ -168,6 +170,108 @@ class DBHelper {
           'name': field['name'],
           'type': field['type'],
         });
+      }
+    }
+  }
+
+  Future<void> _migrateLegacyTimelineNames(DatabaseExecutor db) async {
+    const legacyNames = {
+      'spotify streaming history': 'Songs',
+      'goodreads reviews': 'Books',
+      'my places': 'Places',
+    };
+
+    for (final entry in legacyNames.entries) {
+      final timelines = await db.query('timelines');
+      final matching = timelines.where((timeline) {
+        return _normalizeKey((timeline['name'] ?? '').toString()) == entry.key;
+      }).toList();
+      if (matching.isEmpty) continue;
+
+      final canonicalName = entry.value;
+      Map<String, Object?>? canonical;
+      for (final timeline in timelines) {
+        if (_normalizeKey((timeline['name'] ?? '').toString()) ==
+            _normalizeKey(canonicalName)) {
+          canonical = timeline;
+          break;
+        }
+      }
+
+      int canonicalId;
+      if (canonical == null) {
+        canonicalId = matching.removeAt(0)['id'] as int;
+        await db.update(
+          'timelines',
+          {'name': canonicalName},
+          where: 'id = ?',
+          whereArgs: [canonicalId],
+        );
+      } else {
+        canonicalId = canonical['id'] as int;
+      }
+
+      for (final legacyTimeline in matching) {
+        final legacyId = legacyTimeline['id'] as int;
+        if (canonical != null &&
+            canonical['firebase_doc_id'] == null &&
+            legacyTimeline['firebase_doc_id'] != null) {
+          await db.update(
+            'timelines',
+            {'firebase_doc_id': legacyTimeline['firebase_doc_id']},
+            where: 'id = ?',
+            whereArgs: [canonicalId],
+          );
+        }
+        final canonicalFields = await db.query(
+          'fields',
+          where: 'timeline_id = ?',
+          whereArgs: [canonicalId],
+        );
+        final fieldIdsByName = <String, int>{
+          for (final field in canonicalFields)
+            _normalizeKey((field['name'] ?? '').toString()): field['id'] as int,
+        };
+        final legacyFields = await db.query(
+          'fields',
+          where: 'timeline_id = ?',
+          whereArgs: [legacyId],
+        );
+
+        for (final field in legacyFields) {
+          final oldFieldId = field['id'] as int;
+          final fieldName = (field['name'] ?? '').toString();
+          final fieldKey = _normalizeKey(fieldName);
+          final newFieldId =
+              fieldIdsByName[fieldKey] ??
+              await db.insert('fields', {
+                'timeline_id': canonicalId,
+                'name': fieldName,
+                'type': field['type'],
+              });
+          fieldIdsByName[fieldKey] = newFieldId;
+          await db.rawUpdate(
+            'UPDATE "values" SET field_id = ? WHERE field_id = ?',
+            [newFieldId, oldFieldId],
+          );
+        }
+
+        await db.update(
+          'entries',
+          {'timeline_id': canonicalId},
+          where: 'timeline_id = ?',
+          whereArgs: [legacyId],
+        );
+        await db.delete(
+          'fields',
+          where: 'timeline_id = ?',
+          whereArgs: [legacyId],
+        );
+        await db.delete(
+          'timelines',
+          where: 'id = ?',
+          whereArgs: [legacyId],
+        );
       }
     }
   }
@@ -721,19 +825,21 @@ Future<void> deleteTimeline(int timelineId) async {
           final normalized = _normalizeKey(name);
           if (normalized.isEmpty) continue;
           timelineIdsByName[normalized] = id;
+          timelineIdsByName[_normalizeKey(canonicalTimelineName(name))] ??= id;
         }
       }
 
       for (final timelineRaw in timelinesRaw) {
         if (timelineRaw is! Map) continue;
 
-        final timelineName = (timelineRaw['name'] ?? '').toString().trim();
-        if (timelineName.isEmpty) continue;
+        final sourceTimelineName = (timelineRaw['name'] ?? '').toString().trim();
+        if (sourceTimelineName.isEmpty) continue;
+        final timelineName = canonicalTimelineName(sourceTimelineName);
 
         final timelineNameKey = _normalizeKey(timelineName);
         int timelineId;
         final matchedTimelineId = timelineIdsByName[timelineNameKey];
-        if (mode != ImportMode.replaceAll && matchedTimelineId != null) {
+        if (matchedTimelineId != null) {
           timelineId = matchedTimelineId;
         } else {
           timelineId = await txn.insert('timelines', {'name': timelineName});
@@ -1055,7 +1161,7 @@ static const PermissionRequestOption photoPermissionOption =
 );
 
 /// Scans the photos the app can see and adds their locations to the
-/// "My Places" timeline. Only the GPS coordinates and the date of each photo
+/// "Places" timeline. Only the GPS coordinates and the date of each photo
 /// are read; the photos themselves are never copied or stored.
 ///
 /// Safe to run again: photos that were already imported are skipped, so new
@@ -1094,17 +1200,33 @@ Future<PhotoImportResult> importFromPhotos() async {
 
   final db = await database;
 
-  // Reuse "My Places" if it exists and remember which photos are already in
+  // Reuse "Places" (or the legacy name) and remember which photos are already in
   // it (matched by the photo's exact creation time).
   int? timelineId;
   final Map<String, int> fieldIds = {};
   final Set<int> importedTimestamps = {};
-  final existing = await db.query(
+  var existing = await db.query(
     'timelines',
-    where: 'name = ?',
-    whereArgs: ['My Places'],
+    where: 'LOWER(TRIM(name)) = ?',
+    whereArgs: ['places'],
     limit: 1,
   );
+  if (existing.isEmpty) {
+    existing = await db.query(
+      'timelines',
+      where: 'LOWER(TRIM(name)) = ?',
+      whereArgs: ['my places'],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      await db.update(
+        'timelines',
+        {'name': 'Places'},
+        where: 'id = ?',
+        whereArgs: [existing.first['id']],
+      );
+    }
+  }
   if (existing.isNotEmpty) {
     timelineId = existing.first['id'] as int;
     final fields = await db.query(
@@ -1113,7 +1235,7 @@ Future<PhotoImportResult> importFromPhotos() async {
       whereArgs: [timelineId],
     );
     for (final f in fields) {
-      fieldIds[f['name'] as String] = f['id'] as int;
+      fieldIds[_normalizeKey(f['name'] as String)] = f['id'] as int;
     }
     final entries = await db.query(
       'entries',
@@ -1130,11 +1252,18 @@ Future<PhotoImportResult> importFromPhotos() async {
   // Creates the timeline and any missing fields the first time a new place
   // is found, so an import with no results doesn't leave an empty timeline.
   Future<int> ensureTimeline() async {
-    timelineId ??= await db.insert('timelines', {'name': 'My Places'});
-    for (final name in ['date', 'country', 'city', 'latitude', 'longitude']) {
-      fieldIds[name] ??= await db.insert('fields', {
+    timelineId ??= await db.insert('timelines', {'name': 'Places'});
+    const fields = {
+      'date': 'Date',
+      'country': 'Country',
+      'city': 'City',
+      'latitude': 'Latitude',
+      'longitude': 'Longitude',
+    };
+    for (final field in fields.entries) {
+      fieldIds[field.key] ??= await db.insert('fields', {
         'timeline_id': timelineId,
-        'name': name,
+        'name': field.value,
         'type': 'text',
       });
     }
@@ -1226,20 +1355,27 @@ Future<PhotoImportResult> importFromPhotos() async {
   );
 }
 
-/// Adds latitude/longitude to existing "My Places" entries that were
+/// Adds latitude/longitude to existing "Places" entries that were
 /// imported before coordinates were being saved. Matches each existing
 /// entry back to its original photo using the exact creation timestamp,
 /// which is stored for both.
 Future<int> backfillPhotoCoordinates() async {
   final db = await database;
 
-  final existing = await db.query(
+  var existing = await db.query(
     'timelines',
-    where: 'name = ?',
-    whereArgs: ['My Places'],
+    where: 'LOWER(TRIM(name)) = ?',
+    whereArgs: ['places'],
   );
   if (existing.isEmpty) {
-    print('My Places does not exist yet - nothing to backfill.');
+    existing = await db.query(
+      'timelines',
+      where: 'LOWER(TRIM(name)) = ?',
+      whereArgs: ['my places'],
+    );
+  }
+  if (existing.isEmpty) {
+    print('Places does not exist yet - nothing to backfill.');
     return 0;
   }
   final timelineId = existing.first['id'] as int;
@@ -1252,14 +1388,18 @@ Future<int> backfillPhotoCoordinates() async {
   int? latFieldId;
   int? lngFieldId;
   for (final f in existingFields) {
-    if (f['name'] == 'latitude') latFieldId = f['id'] as int;
-    if (f['name'] == 'longitude') lngFieldId = f['id'] as int;
+    if (_normalizeKey(f['name'] as String) == 'latitude') {
+      latFieldId = f['id'] as int;
+    }
+    if (_normalizeKey(f['name'] as String) == 'longitude') {
+      lngFieldId = f['id'] as int;
+    }
   }
   latFieldId ??= await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'latitude', 'type': 'text',
+    'timeline_id': timelineId, 'name': 'Latitude', 'type': 'text',
   });
   lngFieldId ??= await db.insert('fields', {
-    'timeline_id': timelineId, 'name': 'longitude', 'type': 'text',
+    'timeline_id': timelineId, 'name': 'Longitude', 'type': 'text',
   });
 
   final existingEntries = await db.query(
