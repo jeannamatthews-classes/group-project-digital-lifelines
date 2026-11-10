@@ -2,33 +2,10 @@ part of 'about_actions_section.dart';
 // ignore_for_file: unused_element, invalid_use_of_protected_member
 
 extension _AboutActionsSectionShared on _AboutActionsSectionState {
-  // Example JSON users can paste to understand expected schema quickly.
-  String get _importExampleJson => const JsonEncoder.withIndent('  ').convert({
-    'schema_version': 1,
-    'app': 'Digital Lifelines',
-    'type': 'template',
-    'timelines': [
-      {
-        'name': 'Books',
-        'fields': [
-          {'name': 'title', 'type': 'text'},
-          {'name': 'author', 'type': 'text'},
-          {'name': 'rating', 'type': 'number'},
-        ],
-        'entries': [
-          {
-            'created_at': 1710000000000,
-            'is_favorite': true,
-            'values': {
-              'title': 'Atomic Habits',
-              'author': 'James Clear',
-              'rating': '5',
-            },
-          },
-        ],
-      },
-    ],
-  });
+  // Use the same empty templates that are created on first launch.
+  String get _importExampleJson => const JsonEncoder.withIndent(
+    '  ',
+  ).convert(_dbHelper.buildTemplateJson());
 
   // Generic dialog helper used for template/export JSON previews.
   Future<void> _showJsonOutput({

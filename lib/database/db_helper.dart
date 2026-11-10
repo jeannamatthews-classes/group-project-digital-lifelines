@@ -17,6 +17,54 @@ class DBHelper {
   DBHelper._internal();
 
   static final DBHelper instance = DBHelper._internal();
+
+  static const defaultTimelineTemplates = <Map<String, dynamic>>[
+    {
+      'name': 'Spotify Streaming History',
+      'fields': [
+        {'name': 'track', 'type': 'text'},
+        {'name': 'artist', 'type': 'text'},
+        {'name': 'end_time', 'type': 'text'},
+        {'name': 'ms_played', 'type': 'number'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'Goodreads Reviews',
+      'fields': [
+        {'name': 'book', 'type': 'text'},
+        {'name': 'rating', 'type': 'text'},
+        {'name': 'read_status', 'type': 'text'},
+        {'name': 'review', 'type': 'text'},
+        {'name': 'includes_spoilers', 'type': 'text'},
+        {'name': 'notes', 'type': 'text'},
+        {'name': 'updated_at', 'type': 'text'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'My Places',
+      'fields': [
+        {'name': 'date', 'type': 'text'},
+        {'name': 'country', 'type': 'text'},
+        {'name': 'city', 'type': 'text'},
+        {'name': 'latitude', 'type': 'text'},
+        {'name': 'longitude', 'type': 'text'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+    {
+      'name': 'Favorite Restaurants',
+      'fields': [
+        {'name': 'Name', 'type': 'text'},
+        {'name': 'Address', 'type': 'text'},
+        {'name': 'Rating', 'type': 'number'},
+        {'name': 'Best Meal', 'type': 'text'},
+      ],
+      'entries': <Map<String, dynamic>>[],
+    },
+  ];
+
   Database? _database;
 
   Future<Database> get database async {
@@ -34,7 +82,7 @@ class DBHelper {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
     await db.execute('''
           CREATE TABLE timelines (
@@ -70,6 +118,8 @@ class DBHelper {
             value TEXT
           )
         ''');
+
+        await _seedDefaultTimelines(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -91,8 +141,35 @@ class DBHelper {
             print('Column may already exist: $e');
           }
         }
+        if (oldVersion < 5) {
+          await _seedDefaultTimelines(db);
+        }
       },
     );
+  }
+
+  Future<void> _seedDefaultTimelines(DatabaseExecutor db) async {
+    final existingTimelines = await db.query(
+      'timelines',
+      columns: ['name'],
+    );
+    final existingNames = existingTimelines
+        .map((row) => _normalizeKey((row['name'] ?? '').toString()))
+        .toSet();
+
+    for (final template in defaultTimelineTemplates) {
+      final name = template['name'] as String;
+      if (!existingNames.add(_normalizeKey(name))) continue;
+
+      final timelineId = await db.insert('timelines', {'name': name});
+      for (final field in template['fields'] as List<Map<String, dynamic>>) {
+        await db.insert('fields', {
+          'timeline_id': timelineId,
+          'name': field['name'],
+          'type': field['type'],
+        });
+      }
+    }
   }
 
 /*Future<int> insertTimeline(Timeline timeline) async {
@@ -522,33 +599,13 @@ Future<void> deleteTimeline(int timelineId) async {
     return {'total': total, 'favorites': favorites};
   }
 
-  // Small example payload shown in the UI for users who want a starter template.
+  // Empty importable templates also serve as the first-run lifeline defaults.
   Map<String, dynamic> buildTemplateJson() {
     return {
       'schema_version': 1,
       'app': 'Digital Lifelines',
       'type': 'template',
-      'timelines': [
-        {
-          'name': 'Books',
-          'fields': [
-            {'name': 'title', 'type': 'text'},
-            {'name': 'author', 'type': 'text'},
-            {'name': 'rating', 'type': 'number'},
-          ],
-          'entries': [
-            {
-              'created_at': 0,
-              'is_favorite': true,
-              'values': {
-                'title': 'Example Book',
-                'author': 'Author Name',
-                'rating': '5',
-              },
-            },
-          ],
-        },
-      ],
+      'timelines': defaultTimelineTemplates,
     };
   }
 
