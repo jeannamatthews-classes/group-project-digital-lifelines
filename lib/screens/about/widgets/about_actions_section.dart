@@ -195,10 +195,23 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
     } else {
       title = 'Scan complete';
       final added = result.placesAdded;
-      final addedText = added == 0
-          ? 'They were all already in your Places timeline.'
-          : 'Added $added new ${added == 1 ? 'place' : 'places'} to your '
-                'Places timeline.';
+      final same = result.sameMomentSkipped;
+      final sameNote = same == 0
+          ? ''
+          : ' ($same ${same == 1 ? 'was' : 'were'} taken at the same time '
+                'and place as another photo)';
+      final String addedText;
+      if (added > 0) {
+        addedText =
+            'Added $added new ${added == 1 ? 'place' : 'places'} to your '
+            'My Places timeline$sameNote.';
+      } else if (result.alreadyImported > 0) {
+        addedText =
+            'No new places to add. They were already in your My Places '
+            'timeline$sameNote.';
+      } else {
+        addedText = 'No new places were added$sameNote.';
+      }
       message =
           '$withLocation of your $scanned $photoWord '
           '${withLocation == 1 ? 'has' : 'have'} location metadata, which can '

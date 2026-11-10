@@ -1273,6 +1273,12 @@ Future<PhotoImportResult> importFromPhotos() async {
   final Map<String, Map<String, String>> geocodeCache = {};
   int withLocation = 0;
   int added = 0;
+  int alreadyImported = 0;
+  // Photos taken in the same second as another photo in this scan (usually a
+  // burst). Creation times only have one-second precision, so these would be
+  // identical entries; only the first one is kept.
+  int sameMoment = 0;
+  final Set<int> timestampsThisScan = {};
 
   for (final photo in photos) {
     try {
@@ -1285,7 +1291,15 @@ Future<PhotoImportResult> importFromPhotos() async {
       withLocation++;
 
       final createdAt = photo.createDateTime.millisecondsSinceEpoch;
-      if (importedTimestamps.contains(createdAt)) continue;
+      if (timestampsThisScan.contains(createdAt)) {
+        sameMoment++;
+        continue;
+      }
+      if (importedTimestamps.contains(createdAt)) {
+        timestampsThisScan.add(createdAt);
+        alreadyImported++;
+        continue;
+      }
 
       final lat = latLng.latitude;
       final lng = latLng.longitude;
@@ -1337,6 +1351,7 @@ Future<PhotoImportResult> importFromPhotos() async {
         );
       }
       importedTimestamps.add(createdAt);
+      timestampsThisScan.add(createdAt);
       added++;
     } catch (e) {
       print('Error processing photo: $e');
@@ -1345,13 +1360,16 @@ Future<PhotoImportResult> importFromPhotos() async {
   }
 
   print('Scanned ${photos.length} photos, $withLocation with location, '
-      'added $added new places.');
+      'added $added new places, $alreadyImported already imported, '
+      '$sameMoment taken at the same time as another photo.');
   return PhotoImportResult(
     permissionGranted: true,
     limitedAccess: permission == PermissionState.limited,
     photosScanned: photos.length,
     photosWithLocation: withLocation,
     placesAdded: added,
+    alreadyImported: alreadyImported,
+    sameMomentSkipped: sameMoment,
   );
 }
 
@@ -1513,11 +1531,20 @@ class PhotoImportResult {
   final int photosWithLocation;
   final int placesAdded;
 
+  /// Photos skipped because they were already in "My Places".
+  final int alreadyImported;
+
+  /// Photos skipped because another photo was taken in the same second
+  /// (usually a burst), so they would have been identical entries.
+  final int sameMomentSkipped;
+
   const PhotoImportResult({
     required this.permissionGranted,
     this.limitedAccess = false,
     this.photosScanned = 0,
     this.photosWithLocation = 0,
     this.placesAdded = 0,
+    this.alreadyImported = 0,
+    this.sameMomentSkipped = 0,
   });
 }
