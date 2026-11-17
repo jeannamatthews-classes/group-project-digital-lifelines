@@ -8,12 +8,14 @@ import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../../../data/timeline_export_archive.dart';
+import '../../../data/uber_csv_import.dart';
 import '../../../database/db_helper.dart';
 import '../../../theme/app_theme.dart';
 
 part 'shared.dart';
 part 'goodreads.dart';
 part 'spotify.dart';
+part 'uber.dart';
 part 'widgets.dart';
 
 class AboutActionsSection extends StatefulWidget {
@@ -97,6 +99,18 @@ class _AboutActionsSectionState extends State<AboutActionsSection> {
             onPressed: _isBusy ? null : _importGoodreadsJsonFromFile,
             imageAsset: 'assets/goodreads.png',
             text: 'Import Goodreads JSON',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _importUberCsvFromFile,
+            icon: Icons.local_taxi_outlined,
+            text: 'Import Uber CSV',
+          ),
+          const SizedBox(height: 10),
+          _ActionButton(
+            onPressed: _isBusy ? null : _importDoorDashCsvFromFile,
+            icon: Icons.restaurant_outlined,
+            text: 'Import DoorDash CSV',
           ),
           const SizedBox(height: 10),
           _ActionButton(

@@ -45,9 +45,11 @@ void main() {
       expect(timelines[3]['fields'], [
         {'name': 'Date', 'type': 'text'},
         {'name': 'Country', 'type': 'text'},
+        {'name': 'State', 'type': 'text'},
         {'name': 'City', 'type': 'text'},
         {'name': 'Latitude', 'type': 'text'},
         {'name': 'Longitude', 'type': 'text'},
+        {'name': 'Destination', 'type': 'text'},
       ]);
     },
   );

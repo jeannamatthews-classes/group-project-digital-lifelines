@@ -3,9 +3,8 @@ part of 'about_actions_section.dart';
 
 extension _AboutActionsSectionShared on _AboutActionsSectionState {
   // Use the same empty templates that are created on first launch.
-  String get _importExampleJson => const JsonEncoder.withIndent(
-    '  ',
-  ).convert(_dbHelper.buildTemplateJson());
+  String get _importExampleJson =>
+      const JsonEncoder.withIndent('  ').convert(_dbHelper.buildTemplateJson());
 
   // Generic dialog helper used for template/export JSON previews.
   Future<void> _showJsonOutput({
@@ -384,7 +383,7 @@ extension _AboutActionsSectionShared on _AboutActionsSectionState {
     if (picked == null || picked.files.isEmpty) return;
 
     final selected = picked.files.first;
-    final jsonText = await _readPickedJsonText(selected);
+    final jsonText = await _readPickedText(selected);
 
     if (jsonText == null || jsonText.trim().isEmpty) {
       if (!mounted) return;
@@ -502,7 +501,7 @@ extension _AboutActionsSectionShared on _AboutActionsSectionState {
   }
 
   // Reads bytes and decodes with robust encoding detection.
-  Future<String?> _readPickedJsonText(PlatformFile selected) async {
+  Future<String?> _readPickedText(PlatformFile selected) async {
     if (selected.path != null && selected.path!.isNotEmpty) {
       final bytes = await File(selected.path!).readAsBytes();
       return _decodeTextWithFallback(bytes);

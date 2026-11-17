@@ -19,9 +19,7 @@ extension _AboutActionsSectionGoodreads on _AboutActionsSectionState {
                   SizedBox(
                     width: 24,
                     height: 24,
-                    child: Image(
-                      image: AssetImage('assets/goodreads.png'),
-                    ),
+                    child: Image(image: AssetImage('assets/goodreads.png')),
                   ),
                   SizedBox(width: 12),
                   Expanded(
@@ -130,7 +128,7 @@ extension _AboutActionsSectionGoodreads on _AboutActionsSectionState {
     if (picked == null || picked.files.isEmpty) return;
 
     final selected = picked.files.first;
-    final jsonText = await _readPickedJsonText(selected);
+    final jsonText = await _readPickedText(selected);
 
     if (jsonText == null || jsonText.trim().isEmpty) {
       if (!mounted) return;
@@ -148,13 +146,17 @@ extension _AboutActionsSectionGoodreads on _AboutActionsSectionState {
     String goodreadsJsonText, {
     required ImportMode importMode,
   }) async {
-    final convertedPayload = _convertGoodreadsToImportPayload(goodreadsJsonText);
+    final convertedPayload = _convertGoodreadsToImportPayload(
+      goodreadsJsonText,
+    );
     final convertedJsonText = jsonEncode(convertedPayload);
     await _runImport(convertedJsonText, importMode: importMode);
   }
 
   // Maps Goodreads review export JSON into a Digital Lifelines timeline payload.
-  Map<String, dynamic> _convertGoodreadsToImportPayload(String goodreadsJsonText) {
+  Map<String, dynamic> _convertGoodreadsToImportPayload(
+    String goodreadsJsonText,
+  ) {
     final decoded = jsonDecode(goodreadsJsonText);
     if (decoded is! List) {
       throw const FormatException('Goodreads JSON root must be a list');
@@ -166,8 +168,10 @@ extension _AboutActionsSectionGoodreads on _AboutActionsSectionState {
       if (item is! Map) continue;
 
       final hasBook = (item['book'] ?? '').toString().trim().isNotEmpty;
-      final hasReadStatus =
-          (item['read_status'] ?? '').toString().trim().isNotEmpty;
+      final hasReadStatus = (item['read_status'] ?? '')
+          .toString()
+          .trim()
+          .isNotEmpty;
       final hasRating = item['rating'] != null;
       if (!hasBook && !hasReadStatus && !hasRating) {
         continue;
@@ -241,6 +245,7 @@ extension _AboutActionsSectionGoodreads on _AboutActionsSectionState {
 
     final normalized = text.replaceFirst(' UTC', 'Z').replaceFirst(' ', 'T');
     final parsed = DateTime.tryParse(normalized);
-    return parsed?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch;
+    return parsed?.millisecondsSinceEpoch ??
+        DateTime.now().millisecondsSinceEpoch;
   }
 }

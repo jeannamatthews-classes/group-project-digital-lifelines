@@ -27,13 +27,24 @@ class EntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final createdAt = DateTime.fromMillisecondsSinceEpoch(entry.createdAt);
-    final titleField = fields.isNotEmpty ? fields.first : null;
+    final isPlaces = (timelineName ?? '').trim().toLowerCase() == 'places';
+    TimelineField? titleField;
+    if (isPlaces) {
+      for (final field in fields) {
+        if (field.name.trim().toLowerCase() == 'city') {
+          titleField = field;
+          break;
+        }
+      }
+    }
+    if (!isPlaces && fields.isNotEmpty) titleField = fields.first;
     final titleValue = titleField == null
         ? ''
         : (valuesByFieldId[titleField.id] ?? '').trim();
 
     final isSpotify = (timelineName ?? '').toLowerCase().contains('spotify');
-    final isMusic = (timelineName ?? '').toLowerCase().contains('music') ||
+    final isMusic =
+        (timelineName ?? '').toLowerCase().contains('music') ||
         (timelineName ?? '').toLowerCase().contains('song');
     final isGoodreads = (timelineName ?? '').toLowerCase().contains(
       'goodreads',
@@ -80,8 +91,8 @@ class EntryCard extends StatelessWidget {
                       color: (isSpotify || isGoodreads)
                           ? const Color(0xFF1DB954).withValues(alpha: 0.15)
                           : (entry.isFavorite
-                              ? AppColors.accent.withValues(alpha: 0.15)
-                              : AppColors.primary.withValues(alpha: 0.1)),
+                                ? AppColors.accent.withValues(alpha: 0.15)
+                                : AppColors.primary.withValues(alpha: 0.1)),
                       shape: BoxShape.circle,
                     ),
                     child: (isSpotify || isGoodreads)
@@ -98,13 +109,13 @@ class EntryCard extends StatelessWidget {
                             isMusic
                                 ? Icons.music_note_rounded
                                 : (entry.isFavorite
-                                    ? Icons.star_rounded
-                                    : Icons.label_important_rounded),
+                                      ? Icons.star_rounded
+                                      : Icons.label_important_rounded),
                             color: isMusic
                                 ? const Color(0xFFE91E63)
                                 : (entry.isFavorite
-                                    ? AppColors.accent
-                                    : AppColors.primary),
+                                      ? AppColors.accent
+                                      : AppColors.primary),
                             size: 20,
                           ),
                   ),
@@ -115,7 +126,9 @@ class EntryCard extends StatelessWidget {
                       children: [
                         Text(
                           titleValue.isEmpty
-                              ? 'Life Point #${entry.id}'
+                              ? (isPlaces
+                                    ? 'Place #${entry.id}'
+                                    : 'Life Point #${entry.id}')
                               : titleValue,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -128,7 +141,7 @@ class EntryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _formatDate(createdAt),
+                          _formatDate(createdAt, includeTime: !isPlaces),
                           style: const TextStyle(
                             color: AppColors.mutedText,
                             fontSize: 12,
@@ -263,9 +276,11 @@ class EntryCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime date, {bool includeTime = true}) {
     final mm = date.month.toString().padLeft(2, '0');
     final dd = date.day.toString().padLeft(2, '0');
+    if (!includeTime) return '$mm/$dd/${date.year}';
+
     final hh = date.hour.toString().padLeft(2, '0');
     final min = date.minute.toString().padLeft(2, '0');
     return '$mm/$dd/${date.year} $hh:$min';

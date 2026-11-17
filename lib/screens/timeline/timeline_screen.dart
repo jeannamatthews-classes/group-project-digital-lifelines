@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/uber_csv_import.dart';
 import '../../database/db_helper.dart';
 import '../../models/entry.dart';
 import '../../models/field.dart';
@@ -39,7 +40,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
     final timelineId = widget.timeline.id;
     if (timelineId == null) return;
 
-    final fields = await _dbHelper.getFields(timelineId);
+    final fields = (await _dbHelper.getFields(timelineId))
+        .where((field) => !isHiddenImportField(widget.timeline.name, field.name))
+        .toList();
     final entries = await _dbHelper.getEntries(timelineId);
 
     final entryData = <_EntryData>[];

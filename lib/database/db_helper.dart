@@ -58,9 +58,11 @@ class DBHelper {
       'fields': [
         {'name': 'Date', 'type': 'text'},
         {'name': 'Country', 'type': 'text'},
+        {'name': 'State', 'type': 'text'},
         {'name': 'City', 'type': 'text'},
         {'name': 'Latitude', 'type': 'text'},
         {'name': 'Longitude', 'type': 'text'},
+        {'name': 'Destination', 'type': 'text'},
       ],
       'entries': <Map<String, dynamic>>[],
     },
@@ -83,7 +85,7 @@ class DBHelper {
 
     return openDatabase(
       path,
-      version: 6,
+      version: 9,
       onCreate: (db, version) async {
     await db.execute('''
           CREATE TABLE timelines (
@@ -142,7 +144,7 @@ class DBHelper {
             print('Column may already exist: $e');
           }
         }
-        if (oldVersion < 6) {
+        if (oldVersion < 9) {
           await _migrateLegacyTimelineNames(db);
           await _seedDefaultTimelines(db);
         }
@@ -161,10 +163,27 @@ class DBHelper {
 
     for (final template in defaultTimelineTemplates.reversed) {
       final name = template['name'] as String;
-      if (!existingNames.add(_normalizeKey(name))) continue;
-
-      final timelineId = await db.insert('timelines', {'name': name});
+      final isNewTimeline = existingNames.add(_normalizeKey(name));
+      final timelineId = isNewTimeline
+          ? await db.insert('timelines', {'name': name})
+          : (await db.query(
+              'timelines',
+              columns: ['id'],
+              where: 'LOWER(TRIM(name)) = ?',
+              whereArgs: [_normalizeKey(name)],
+              limit: 1,
+            )).first['id'] as int;
+      final existingFields = await db.query(
+        'fields',
+        columns: ['name'],
+        where: 'timeline_id = ?',
+        whereArgs: [timelineId],
+      );
+      final fieldNames = existingFields
+          .map((field) => _normalizeKey((field['name'] ?? '').toString()))
+          .toSet();
       for (final field in template['fields'] as List<Map<String, dynamic>>) {
+        if (!fieldNames.add(_normalizeKey(field['name'] as String))) continue;
         await db.insert('fields', {
           'timeline_id': timelineId,
           'name': field['name'],
@@ -1031,6 +1050,13 @@ Future<void> deleteTimeline(int timelineId) async {
 
   // Uses title/name as a primary duplicate key when available.
   String? _extractEntryNameKey(Map<String, String> valuesByFieldName) {
+    final importId = valuesByFieldName['import_id']?.trim();
+    final legacyUberId = valuesByFieldName['uber_id']?.trim();
+    final externalId = importId?.isNotEmpty == true ? importId : legacyUberId;
+    if (externalId != null && externalId.isNotEmpty) {
+      return 'import_id:${_normalizeKey(externalId)}';
+    }
+
     final title = valuesByFieldName['title'];
     final name = valuesByFieldName['name'];
 
@@ -1256,6 +1282,7 @@ Future<PhotoImportResult> importFromPhotos() async {
     const fields = {
       'date': 'Date',
       'country': 'Country',
+      'state': 'State',
       'city': 'City',
       'latitude': 'Latitude',
       'longitude': 'Longitude',
@@ -1305,12 +1332,14 @@ Future<PhotoImportResult> importFromPhotos() async {
       final lng = latLng.longitude;
 
       String country = 'Unknown';
+      String state = 'Unknown';
       String city = 'Unknown';
       // Round coordinates to ~1km precision to group nearby photos together
       final cacheKey = '${lat.toStringAsFixed(2)},${lng.toStringAsFixed(2)}';
 
       if (geocodeCache.containsKey(cacheKey)) {
         country = geocodeCache[cacheKey]!['country']!;
+        state = geocodeCache[cacheKey]!['state']!;
         city = geocodeCache[cacheKey]!['city']!;
       } else {
         try {
@@ -1318,14 +1347,23 @@ Future<PhotoImportResult> importFromPhotos() async {
           if (placemarks.isNotEmpty) {
             final place = placemarks.first;
             country = place.country ?? 'Unknown';
+            state = place.administrativeArea ?? 'Unknown';
             city = place.locality ?? place.administrativeArea ?? 'Unknown';
           }
-          geocodeCache[cacheKey] = {'country': country, 'city': city};
+          geocodeCache[cacheKey] = {
+            'country': country,
+            'state': state,
+            'city': city,
+          };
           // Small delay only for actual network calls
           await Future.delayed(const Duration(milliseconds: 500));
         } catch (e) {
           print('Geocoding failed for $lat, $lng: $e');
-          geocodeCache[cacheKey] = {'country': country, 'city': city};
+          geocodeCache[cacheKey] = {
+            'country': country,
+            'state': state,
+            'city': city,
+          };
         }
       }
       final date = photo.createDateTime.toIso8601String().split('T').first;
@@ -1340,6 +1378,7 @@ Future<PhotoImportResult> importFromPhotos() async {
       final values = {
         'date': date,
         'country': country,
+        'state': state,
         'city': city,
         'latitude': lat.toString(),
         'longitude': lng.toString(),

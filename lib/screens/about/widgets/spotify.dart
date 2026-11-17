@@ -61,7 +61,10 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
                     const SizedBox(height: 20),
                     const Text(
                       'Filtering Options',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -71,14 +74,19 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
                         border: Border.all(color: Colors.grey.shade200),
                       ),
                       child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.calendar_today_rounded, size: 20),
+                          child: const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 20,
+                          ),
                         ),
                         title: const Text(
                           'Start from date',
@@ -188,7 +196,7 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
     if (picked == null || picked.files.isEmpty) return;
 
     final selected = picked.files.first;
-    final jsonText = await _readPickedJsonText(selected);
+    final jsonText = await _readPickedText(selected);
 
     if (jsonText == null || jsonText.trim().isEmpty) {
       if (!mounted) return;
@@ -325,7 +333,8 @@ extension _AboutActionsSectionSpotify on _AboutActionsSectionState {
         ? endTime
         : endTime.replaceFirst(' ', 'T');
     final parsed = DateTime.tryParse(normalized);
-    return parsed?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch;
+    return parsed?.millisecondsSinceEpoch ??
+        DateTime.now().millisecondsSinceEpoch;
   }
 
   String _formatDateLabel(DateTime date) {
